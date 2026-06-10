@@ -1,5 +1,5 @@
-import { Calculator, ChevronRight, GraduationCap, Layers, ListChecks } from 'lucide-react'
-import { useMemo } from 'react'
+import { AlertTriangle, Calculator, ChevronRight, GraduationCap, Layers, ListChecks, RotateCcw } from 'lucide-react'
+import { useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 
 import sectionStyles from '@shared/ui/page-section/PageSection.module.css'
@@ -11,6 +11,7 @@ export function CourseEvaluationPage() {
   const { offeringId } = useParams()
   const navigate = useNavigate()
   const d = useCourseEvaluationMudekData(offeringId)
+  const [confirmReset, setConfirmReset] = useState(false)
 
   const nav = useMemo(
     () => [
@@ -131,11 +132,49 @@ export function CourseEvaluationPage() {
                 Son hesaplama:{' '}
                 {d.mudekMeta?.lastCalculatedAt ? d.formatDate(d.mudekMeta.lastCalculatedAt) : '—'}
               </p>
+
+              {/* CLO kaynak kilidi göstergesi */}
+              {d.cloDataSource === 'db' ? (
+                <div style={{ display: 'flex', gap: '0.4rem', alignItems: 'flex-start', background: 'var(--color-warning-bg, #fffbe6)', border: '1px solid var(--color-warning, #f0b429)', borderRadius: '6px', padding: '0.55rem 0.7rem', margin: '0.5rem 0', fontSize: '0.82rem', color: 'var(--color-warning-text, #7c5e00)' }}>
+                  <AlertTriangle size={15} style={{ flexShrink: 0, marginTop: '1px' }} aria-hidden />
+                  <span>
+                    <strong>Yerel DÖÇ kaynağı kilitli.</strong> Üniversite API'si boştu; hesaplamalar veritabanındaki DÖÇ kayıtlarını kullanıyor.
+                    API dolduğunda sıfırla butonuyla kilidi kaldırabilirsin — eşlemeler temizlenir, yeniden yapılması gerekir.
+                  </span>
+                </div>
+              ) : d.cloDataSource === 'api' ? (
+                <p className={styles.summaryLine} style={{ fontSize: '0.82rem' }}>
+                  DÖÇ kaynağı: <strong>Üniversite API</strong>
+                </p>
+              ) : null}
+
+              {/* Reset sonucu uyarısı */}
+              {d.cloLockResetResult ? (
+                <div style={{ display: 'flex', gap: '0.4rem', alignItems: 'flex-start', background: 'var(--color-info-bg, #e8f4fd)', border: '1px solid var(--color-info, #2196f3)', borderRadius: '6px', padding: '0.55rem 0.7rem', margin: '0.5rem 0', fontSize: '0.82rem', color: 'var(--color-info-text, #0d47a1)' }}>
+                  <AlertTriangle size={15} style={{ flexShrink: 0, marginTop: '1px' }} aria-hidden />
+                  <span>
+                    Kaynak kilidi sıfırlandı.{' '}
+                    {(d.cloLockResetResult.deletedQuestionMappings ?? 0) > 0
+                      ? `${d.cloLockResetResult.deletedQuestionMappings} soru, `
+                      : ''}
+                    {(d.cloLockResetResult.deletedComponentMappings ?? 0) > 0
+                      ? `${d.cloLockResetResult.deletedComponentMappings} bileşen, `
+                      : ''}
+                    {(d.cloLockResetResult.clearedSurveyQuestionClos ?? 0) > 0
+                      ? `${d.cloLockResetResult.clearedSurveyQuestionClos} anket sorusu `
+                      : ''}
+                    DÖÇ eşlemesi temizlendi.{' '}
+                    <strong>Sorularınızı ve anket sorularınızı yeniden DÖÇ ile eşleştirmeniz gerekiyor.</strong>
+                  </span>
+                </div>
+              ) : null}
+
               {d.mudekMeta?.isCalculationDirty ? (
                 <p className={styles.dirtyHint}>
                   Notlar veya yapı değişti; tablolar eski olabilir. Aşağıdan yeniden hesaplayın.
                 </p>
               ) : null}
+
               <button
                 type="button"
                 className={styles.calcBtn}
@@ -145,8 +184,46 @@ export function CourseEvaluationPage() {
                 <Calculator size={18} aria-hidden />
                 {d.mudekCalcRunning ? 'Hesaplanıyor…' : 'MÜDEK sonuçlarını hesapla'}
               </button>
+
+              {/* CLO kaynak sıfırlama */}
+              {d.cloDataSource != null && d.evaluationId ? (
+                confirmReset ? (
+                  <div style={{ marginTop: '0.6rem', padding: '0.6rem 0.75rem', background: 'var(--color-danger-bg, #fff0f0)', border: '1px solid var(--color-danger, #e53935)', borderRadius: '6px', fontSize: '0.82rem' }}>
+                    <p style={{ margin: '0 0 0.5rem', color: 'var(--color-danger-text, #b71c1c)', fontWeight: 600 }}>
+                      Emin misin? Tüm DÖÇ eşlemeleri silinecek.
+                    </p>
+                    <div style={{ display: 'flex', gap: '0.5rem' }}>
+                      <button
+                        type="button"
+                        style={{ flex: 1, padding: '0.35rem 0', borderRadius: '5px', border: '1px solid var(--color-danger, #e53935)', background: 'var(--color-danger, #e53935)', color: '#fff', fontWeight: 600, fontSize: '0.82rem', cursor: 'pointer' }}
+                        disabled={d.cloLockResetting}
+                        onClick={async () => { await d.runResetCloLock(); setConfirmReset(false) }}
+                      >
+                        {d.cloLockResetting ? 'Sıfırlanıyor…' : 'Evet, sıfırla'}
+                      </button>
+                      <button
+                        type="button"
+                        style={{ flex: 1, padding: '0.35rem 0', borderRadius: '5px', border: '1px solid #ccc', background: '#fff', fontSize: '0.82rem', cursor: 'pointer' }}
+                        onClick={() => setConfirmReset(false)}
+                      >
+                        Vazgeç
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginTop: '0.5rem', width: '100%', padding: '0.45rem 0.75rem', borderRadius: '6px', border: '1px solid #ccc', background: 'transparent', fontSize: '0.82rem', cursor: 'pointer', color: 'inherit' }}
+                    onClick={() => setConfirmReset(true)}
+                  >
+                    <RotateCcw size={14} aria-hidden />
+                    DÖÇ kaynak kilidini sıfırla
+                  </button>
+                )
+              ) : null}
+
               {d.mudekError ? (
-                <p className={sectionStyles.error} role="alert" style={{ margin: 0, fontSize: '0.85rem' }}>
+                <p className={sectionStyles.error} role="alert" style={{ margin: '0.4rem 0 0', fontSize: '0.85rem' }}>
                   {d.mudekError}
                 </p>
               ) : null}

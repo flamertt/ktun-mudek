@@ -35,8 +35,12 @@ namespace BitirmeApi.Entity.Entities
         [MaxLength(2000)]
         public string? McqOptionsCsv { get; set; }
 
-        /// <summary>İsteğe bağlı CLO eşlemesi. Üniversite API CLO ID (int).</summary>
+        /// <summary>İsteğe bağlı CLO eşlemesi. Üniversite API CLO ID (int) veya yerel DB ID.</summary>
         public int? ExternalCloId { get; set; }
+
+        /// <summary>CLO kaynağı: "api" veya "db". ExternalCloId ile birlikte benzersiz tanımlar.</summary>
+        [MaxLength(8)]
+        public string? CloSource { get; set; }
 
         [MaxLength(64)]
         public string? CloCode { get; set; }

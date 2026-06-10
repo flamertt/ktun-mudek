@@ -114,6 +114,16 @@ namespace BitirmeApi.Business.Integration.DTOs
         public int ProgramId { get; set; }
     }
 
+    /// <summary>
+    /// Akademik dönem bilgisiyle zenginleştirilmiş ders açılışı.
+    /// UniversityApiService.GetTeacherOfferingsWithTermAsync tarafından döndürülür.
+    /// </summary>
+    public class UniversityTermCourseOfferingDto : UniversityCourseOfferingDto
+    {
+        public int AcademicTermId { get; set; }
+        public string AcademicTermName { get; set; } = default!;
+    }
+
     // ── Course Offering Detail (with students) ────────────────────────────────
     // GET /api/v1/Mudek/ogretim-elemani-ders-detay
     // → { "courseOfferingId", ..., "students": [{ "studentId", "studentNumber", "fullName" }] }

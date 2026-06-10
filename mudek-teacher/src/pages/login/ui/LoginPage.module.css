@@ -10,8 +10,7 @@
       color-mix(in srgb, var(--md-primary-container) 22%, transparent) 0%,
       rgba(38, 24, 22, 0.42) 42%,
       rgba(26, 12, 12, 0.58) 100%
-    ),
-    url('/background.jpg');
+    );
   background-size: cover;
   background-position: center;
   background-repeat: no-repeat;

@@ -14,6 +14,7 @@ export const appConfig = {
     surveyCreate: '/survey-create',
     outcomes: '/outcomes',
     stats: '/stats',
+    semesterReports: '/semester-reports',
   },
   navSections: [
     {
@@ -36,6 +37,12 @@ export const appConfig = {
         },
         { key: 'outcomes', label: 'Program Çıktılarım', path: '/outcomes', icon: 'target' },
         { key: 'stats', label: 'İstatistikler', path: '/stats', icon: 'bar-chart' },
+        {
+          key: 'semesterReports',
+          label: 'Dönem Sonu Raporu',
+          path: '/semester-reports',
+          icon: 'file-text',
+        },
       ],
     },
   ],
@@ -74,6 +81,10 @@ export const appConfig = {
     stats: {
       title: 'İstatistikler',
       description: 'Ders, değerlendirme ve başarı istatistikleri bu bölümde gösterilecek.',
+    },
+    semesterReports: {
+      title: 'Dönem Sonu Ders Değerlendirme Raporları',
+      description: 'MÜDEK komisyonuna gönderilecek dönem sonu ders değerlendirme raporlarını buradan oluşturup yönetebilirsiniz.',
     },
   },
   ui: {

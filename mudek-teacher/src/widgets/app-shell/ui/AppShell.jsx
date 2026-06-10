@@ -129,7 +129,7 @@ export function AppShell() {
           <div className={`${styles.navBrand} ${isCollapsed ? styles.navBrandCollapsed : ''}`}>
             <img
               className={`${styles.universityLogo} ${isCollapsed ? styles.universityLogoCollapsed : ''}`}
-              src={isCollapsed ? '/sidebar_logo_collapsed.png' : '/ktun_logo_koyu_zemin.gif'}
+              src={isCollapsed ? `${import.meta.env.BASE_URL}sidebar_logo_collapsed.png` : `${import.meta.env.BASE_URL}ktun_logo_koyu_zemin.gif`}
               alt={appConfig.ui.universityLogoAlt}
             />
           </div>

@@ -11,6 +11,7 @@ import {
   fetchMudekResults,
   fetchOfferingClos,
   fetchOfferingProgramOutcomes,
+  resetCloLock,
 } from '../../../shared/api/teacherApi'
 import { getTeacherToken } from '../../../shared/lib/authToken'
 
@@ -30,6 +31,9 @@ export function useCourseEvaluationMudekData(offeringId) {
   const [mudekError, setMudekError] = useState('')
   const [mudekResults, setMudekResults] = useState(null)
   const [mudekCalcRunning, setMudekCalcRunning] = useState(false)
+
+  const [cloLockResetting, setCloLockResetting] = useState(false)
+  const [cloLockResetResult, setCloLockResetResult] = useState(null) // { deletedQuestionMappings, deletedComponentMappings, clearedSurveyQuestionClos }
 
   const evaluationId = evaluation?.id ?? evaluation?.Id ?? null
 
@@ -97,6 +101,26 @@ export function useCourseEvaluationMudekData(offeringId) {
     }
   }, [offeringId])
 
+  const runResetCloLock = useCallback(async () => {
+    const token = getTeacherToken()
+    const evId = evaluation?.id ?? evaluation?.Id
+    if (!token || !evId) return
+    setCloLockResetting(true)
+    setCloLockResetResult(null)
+    setMudekError('')
+    try {
+      const result = await resetCloLock(token, evId)
+      setCloLockResetResult(result)
+      // Evaluation kaydını yenile (CloDataSource = null oldu)
+      const updated = await (fetchEvaluation(token, offeringId).catch(() => null))
+      if (updated) setEvaluation(updated)
+    } catch (e) {
+      setMudekError(e instanceof Error ? e.message : 'CLO kilidi sıfırlanamadı.')
+    } finally {
+      setCloLockResetting(false)
+    }
+  }, [evaluation, offeringId])
+
   const loadLookups = useCallback(() => {
     const token = getTeacherToken()
     if (!token || !offeringId) return
@@ -108,7 +132,9 @@ export function useCourseEvaluationMudekData(offeringId) {
 
     Promise.all([p1, p2, p3, p4]).then(([studentsData, closData, programOutcomesData, examsData]) => {
       setStudents(Array.isArray(studentsData) ? studentsData : [])
-      setClos(Array.isArray(closData) ? closData : [])
+      // fetchOfferingClos returns { source, clos } or a plain array
+      const cloList = Array.isArray(closData) ? closData : (Array.isArray(closData?.clos) ? closData.clos : [])
+      setClos(cloList)
       setProgramOutcomes(Array.isArray(programOutcomesData) ? programOutcomesData : [])
       setExams(Array.isArray(examsData) ? examsData : [])
     })
@@ -197,15 +223,32 @@ export function useCourseEvaluationMudekData(offeringId) {
     return { lastCalculatedAt, isCalculationDirty }
   }, [mudekResults])
 
+  const cloDataSource = evaluation?.cloDataSource ?? evaluation?.CloDataSource ?? null
+
+  // enrollmentId → isim etiketi (enrollment listesi bazlı lookup)
   const studentByEnrollmentId = useMemo(() => {
     const map = new Map()
     for (const s of students ?? []) {
       const enrollmentId = s.enrollmentId ?? s.EnrollmentId ?? s.id ?? s.Id
       if (!enrollmentId) continue
       const fullName = s.studentFullName ?? s.StudentFullName ?? s.fullName ?? s.FullName ?? ''
-      const studentNumber = s.studentNumber ?? s.StudentNumber ?? ''
+      const studentNumber = s.studentNumber ?? s.StudentNumber ?? s.numara ?? s.Numara ?? ''
       const label = [fullName, studentNumber ? `(${studentNumber})` : ''].filter(Boolean).join(' ')
       map.set(String(enrollmentId), label || shortGuid(enrollmentId))
+    }
+    return map
+  }, [shortGuid, students])
+
+  // externalStudentId (üniversite öğrenci ID) → isim etiketi
+  const studentByExternalStudentId = useMemo(() => {
+    const map = new Map()
+    for (const s of students ?? []) {
+      const sid = s.studentId ?? s.StudentId ?? s.externalStudentId ?? s.ExternalStudentId
+      if (sid == null) continue
+      const fullName = s.studentFullName ?? s.StudentFullName ?? s.fullName ?? s.FullName ?? ''
+      const studentNumber = s.studentNumber ?? s.StudentNumber ?? s.numara ?? s.Numara ?? ''
+      const label = [fullName, studentNumber ? `(${studentNumber})` : ''].filter(Boolean).join(' ')
+      map.set(String(sid), label || shortGuid(sid))
     }
     return map
   }, [shortGuid, students])
@@ -252,7 +295,10 @@ export function useCourseEvaluationMudekData(offeringId) {
     if (!Array.isArray(list)) return []
     return list.map((x) => ({
       id: x.id ?? x.Id,
-      enrollmentId: x.enrollmentId ?? x.EnrollmentId,
+      // Backend StudentEvaluationResultDto: ExternalStudentId / ExternalStudentName / ExternalStudentNumber
+      externalStudentId: x.externalStudentId ?? x.ExternalStudentId,
+      externalStudentName: x.externalStudentName ?? x.ExternalStudentName ?? '',
+      externalStudentNumber: x.externalStudentNumber ?? x.ExternalStudentNumber ?? '',
       midtermScore: x.midtermScore ?? x.MidtermScore,
       finalScore: x.finalScore ?? x.FinalScore,
       makeupScore: x.makeupScore ?? x.MakeupScore,
@@ -337,6 +383,10 @@ export function useCourseEvaluationMudekData(offeringId) {
   return {
     evaluation,
     evaluationId,
+    cloDataSource,
+    cloLockResetting,
+    cloLockResetResult,
+    runResetCloLock,
     courseDetail,
     students,
     clos,
@@ -356,6 +406,7 @@ export function useCourseEvaluationMudekData(offeringId) {
     formatDate,
     shortGuid,
     studentByEnrollmentId,
+    studentByExternalStudentId,
     cloById,
     examById,
     mudekStudentResults,

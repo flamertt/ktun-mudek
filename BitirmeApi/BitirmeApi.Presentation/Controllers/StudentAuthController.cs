@@ -8,15 +8,17 @@ namespace BitirmeApi.Presentation.Controllers
     [ApiController]
     public class StudentAuthController : ControllerBase
     {
-        private readonly IAuthService _authService;
+        private readonly ISchoolAuthService _schoolAuth;
 
-        public StudentAuthController(IAuthService authService)
+        public StudentAuthController(ISchoolAuthService schoolAuth)
         {
-            _authService = authService;
+            _schoolAuth = schoolAuth;
         }
 
         /// <summary>
-        /// Öğrenci kullanıcı girişi
+        /// Öğrenci kullanıcı girişi.
+        /// girisTipAdi = "ogr" otomatik olarak eklenir.
+        /// Başarılı girişte MÜDEK JWT tokenı döner; KTUN servis tokenı frontend'e gönderilmez.
         /// </summary>
         [HttpPost("login")]
         public async Task<IActionResult> Login([FromBody] LoginDto loginDto)
@@ -24,10 +26,15 @@ namespace BitirmeApi.Presentation.Controllers
             if (!ModelState.IsValid)
                 return BadRequest(ModelState);
 
-            var result = await _authService.StudentLoginAsync(loginDto);
+            var remoteIp = HttpContext.Connection.RemoteIpAddress?.ToString();
+            var result = await _schoolAuth.StudentLoginAsync(loginDto, remoteIp);
 
             if (!result.IsSuccess)
-                return StatusCode(result.StatusCode, new { message = result.ErrorMessage });
+                return StatusCode(result.StatusCode, new
+                {
+                    isSuccess = false,
+                    message = result.ErrorMessage
+                });
 
             return Ok(result.Data);
         }
