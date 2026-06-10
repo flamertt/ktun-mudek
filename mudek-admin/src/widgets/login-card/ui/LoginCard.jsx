@@ -55,7 +55,7 @@ export function LoginCard() {
       <div className={styles.panel}>
         <div className={styles.header}>
           <div className={styles.logoWrap}>
-            <img className={styles.logo} src={`${import.meta.env.BASE_URL}login_logo.png`} alt={authTexts.logoAlt} />
+            <img className={styles.logo} src="/login_logo.png" alt={authTexts.logoAlt} />
           </div>
           <h1 className={styles.title}>{authTexts.title}</h1>
           <p className={styles.subtitle}>{authTexts.subtitle}</p>

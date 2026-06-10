@@ -143,7 +143,6 @@ namespace BitirmeApi.Business.Concrete
                 ScaleMin = dto.ScaleMin,
                 ScaleMax = dto.ScaleMax,
                 ExternalCloId = dto.ExternalCloId,
-                CloSource = dto.ExternalCloId.HasValue ? dto.CloSource : null,
                 CloCode = dto.CloCode,
                 CloDescription = dto.CloDescription
             };
@@ -171,7 +170,6 @@ namespace BitirmeApi.Business.Concrete
             tracked.ScaleMin = dto.ScaleMin;
             tracked.ScaleMax = dto.ScaleMax;
             tracked.ExternalCloId = dto.ExternalCloId;
-            tracked.CloSource = dto.ExternalCloId.HasValue ? dto.CloSource : null;
             tracked.CloCode = dto.CloCode;
             tracked.CloDescription = dto.CloDescription;
 
@@ -272,14 +270,14 @@ namespace BitirmeApi.Business.Concrete
 
             var cloGroups = questions
                 .Where(q => q.ExternalCloId.HasValue)
-                .GroupBy(q => (CloId: q.ExternalCloId!.Value, Source: q.CloSource ?? "api"))
+                .GroupBy(q => q.ExternalCloId!.Value)
                 .ToList();
 
             var mudekRows = await _cloEvalDal.GetCombinedByOfferingAsync(survey.ExternalCourseOfferingId);
 
             foreach (var group in cloGroups)
             {
-                var cloId = group.Key.CloId;
+                var cloId = group.Key;
                 var firstQ = group.First();
 
                 var questionPcts = group
@@ -313,7 +311,6 @@ namespace BitirmeApi.Business.Concrete
                 cloResults.Add(new CloSurveyResultDto
                 {
                     ExternalCloId = cloId,
-                    CloSource = group.Key.Source,
                     CloCode = firstQ.CloCode,
                     CloDescription = firstQ.CloDescription,
                     QuestionCount = group.Count(),

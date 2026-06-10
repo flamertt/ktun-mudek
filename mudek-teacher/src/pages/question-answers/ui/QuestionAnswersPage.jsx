@@ -39,12 +39,10 @@ export function QuestionAnswersPage() {
   const [saving, setSaving] = useState(false)
   const [submitError, setSubmitError] = useState('')
 
-  // Üniversite API'si ExternalStudentId (= studentId) ile çalışır; enrollment ID kavramı yok
-  const answerByStudentId = useMemo(() => {
+  const answerByEnrollmentId = useMemo(() => {
     const map = new Map()
     for (const a of Array.isArray(answers) ? answers : []) {
-      const sid = a.externalStudentId ?? a.ExternalStudentId ?? a.enrollmentId ?? a.EnrollmentId
-      map.set(Number(sid), a)
+      map.set(a.enrollmentId ?? a.EnrollmentId, a)
     }
     return map
   }, [answers])
@@ -63,11 +61,9 @@ export function QuestionAnswersPage() {
         setAnswers(answerRows)
         const draft = {}
         for (const en of enroll) {
-          const studentId = en.studentId ?? en.StudentId ?? en.id ?? en.Id
-          const existing = answerRows.find(
-            (a) => Number(a.externalStudentId ?? a.ExternalStudentId) === Number(studentId),
-          )
-          draft[studentId] = existing ? existing.score ?? existing.Score : ''
+          const enrollmentId = en.id ?? en.Id
+          const existing = answerRows.find((a) => (a.enrollmentId ?? a.EnrollmentId) === enrollmentId)
+          draft[enrollmentId] = existing ? existing.score ?? existing.Score : ''
         }
         setScoreDraftByEnrollmentId(draft)
       })
@@ -84,36 +80,23 @@ export function QuestionAnswersPage() {
       const token = getTeacherToken()
       if (!token || !questionId) return
 
-      const studentId = enrollment.studentId ?? enrollment.StudentId ?? enrollment.id ?? enrollment.Id
-      const existing = answerByStudentId.get(Number(studentId))
-      const answerId = existing?.id ?? existing?.Id
+      const enrollmentId = enrollment.id ?? enrollment.Id
+      const existing = answerByEnrollmentId.get(enrollmentId)
 
-      const raw = scoreDraftRef.current[studentId]
-      const score = parseMaybeNumber(raw)
-
-      // Boş = sınava girmemiş: kayıt varsa sil, yoksa hiçbir şey yapma
+      const score = parseMaybeNumber(scoreDraftRef.current[enrollmentId])
       if (score == null) {
-        if (!answerId) return
-        setSubmitError('')
-        setSaving(true)
-        try {
-          await deleteAnswer(token, answerId)
-          await load()
-        } catch (e) {
-          setSubmitError(e instanceof Error ? e.message : 'Kaydedilemedi.')
-        } finally {
-          setSaving(false)
-        }
+        setSubmitError('Puan zorunlu.')
         return
       }
 
       setSubmitError('')
       setSaving(true)
       try {
-        if (answerId) {
+        if (existing?.id ?? existing?.Id) {
+          const answerId = existing.id ?? existing.Id
           await updateAnswer(token, answerId, { score })
         } else {
-          await addAnswer(token, questionId, { externalStudentId: Number(studentId), score })
+          await addAnswer(token, questionId, { enrollmentId, score })
         }
         await load()
       } catch (e) {
@@ -122,7 +105,7 @@ export function QuestionAnswersPage() {
         setSaving(false)
       }
     },
-    [answerByStudentId, deleteAnswer, load, questionId],
+    [answerByEnrollmentId, load, questionId],
   )
 
   const handleDeleteOne = useCallback(
@@ -130,8 +113,8 @@ export function QuestionAnswersPage() {
       const token = getTeacherToken()
       if (!token || !questionId) return
 
-      const studentId = enrollment.studentId ?? enrollment.StudentId ?? enrollment.id ?? enrollment.Id
-      const existing = answerByStudentId.get(Number(studentId))
+      const enrollmentId = enrollment.id ?? enrollment.Id
+      const existing = answerByEnrollmentId.get(enrollmentId)
       const answerId = existing?.id ?? existing?.Id
       if (!answerId) return
 
@@ -149,7 +132,7 @@ export function QuestionAnswersPage() {
         setSaving(false)
       }
     },
-    [answerByStudentId, load, questionId],
+    [answerByEnrollmentId, load, questionId],
   )
 
   const handleSaveBulk = useCallback(async () => {
@@ -158,10 +141,10 @@ export function QuestionAnswersPage() {
 
     const items = []
     for (const en of enrollments) {
-      const studentId = en.studentId ?? en.StudentId ?? en.id ?? en.Id
-      const score = parseMaybeNumber(scoreDraftRef.current[studentId])
+      const enrollmentId = en.id ?? en.Id
+      const score = parseMaybeNumber(scoreDraftRef.current[enrollmentId])
       if (score == null) continue
-      items.push({ externalStudentId: Number(studentId), score })
+      items.push({ enrollmentId, score })
     }
 
     if (!items.length) {
@@ -183,21 +166,16 @@ export function QuestionAnswersPage() {
 
   const columns = useMemo(
     () => [
-      columnHelper.accessor(
-        (r) => r?.fullName ?? r?.FullName ?? r?.studentFullName ?? r?.StudentFullName ?? '—',
-        { header: 'Öğrenci' },
-      ),
-      columnHelper.accessor(
-        (r) => r?.studentNumber ?? r?.StudentNumber ?? r?.numara ?? r?.Numara ?? '—',
-        { header: 'Numara' },
-      ),
+      columnHelper.accessor('studentFullName', { header: 'Öğrenci' }),
+      columnHelper.accessor('studentNumber', { header: 'Numara' }),
+      columnHelper.accessor('status', { header: 'Durum', cell: (info) => info.getValue() ?? '—' }),
       columnHelper.display({
         id: 'score',
         header: 'Puan',
         cell: ({ row }) => {
           const en = row.original
-          const studentId = en.studentId ?? en.StudentId ?? en.id ?? en.Id
-          const value = scoreDraftRef.current[studentId] ?? ''
+          const enrollmentId = en.id ?? en.Id
+          const value = scoreDraftRef.current[enrollmentId] ?? ''
           return (
             <input
               type="text"
@@ -205,12 +183,11 @@ export function QuestionAnswersPage() {
               autoComplete="off"
               className={formStyles.input}
               style={{ minWidth: '9rem' }}
-              placeholder="boş = girmedi"
               value={value}
               onChange={(e) =>
                 setScoreDraftByEnrollmentId((prev) => ({
                   ...prev,
-                  [studentId]: e.target.value,
+                  [enrollmentId]: e.target.value,
                 }))
               }
             />
@@ -222,8 +199,8 @@ export function QuestionAnswersPage() {
         header: 'İşlemler',
         cell: ({ row }) => {
           const en = row.original
-          const studentId = en.studentId ?? en.StudentId ?? en.id ?? en.Id
-          const existing = answerByStudentId.get(Number(studentId))
+          const enrollmentId = en.id ?? en.Id
+          const existing = answerByEnrollmentId.get(enrollmentId)
           const hasExisting = Boolean(existing?.id ?? existing?.Id)
 
           return (
@@ -252,7 +229,7 @@ export function QuestionAnswersPage() {
         },
       }),
     ],
-    [answerByStudentId, handleDeleteOne, handleSaveOne, saving],
+    [answerByEnrollmentId, handleDeleteOne, handleSaveOne, saving],
   )
 
   return (

@@ -46,7 +46,7 @@ export function TeacherSurveyDetailPage() {
   const [qRequired, setQRequired] = useState(true)
   const [qMin, setQMin] = useState(0)
   const [qMax, setQMax] = useState(5)
-  const [qClo, setQClo] = useState('')       // selected cloKey e.g. "api:3" or "db:7"
+  const [qClo, setQClo] = useState('')
   const [qSaving, setQSaving] = useState(false)
 
   const loadDetail = useCallback(() => {
@@ -57,9 +57,7 @@ export function TeacherSurveyDetailPage() {
     Promise.all([fetchTeacherSurveyDetail(token, surveyId), fetchOfferingClos(token, offeringId)])
       .then(([d, c]) => {
         setDetail(d ?? null)
-        // fetchOfferingClos returns { source, clos } or a plain array (fallback)
-        const cloList = Array.isArray(c) ? c : (Array.isArray(c?.clos) ? c.clos : [])
-        setClos(cloList)
+        setClos(Array.isArray(c) ? c : [])
         const dd = d ?? {}
         setTitle(gstr(dd, 'title', 'Title'))
         setDescription(gstr(dd, 'description', 'Description') ?? '')
@@ -96,10 +94,8 @@ export function TeacherSurveyDetailPage() {
     setQRequired(q?.isRequired ?? q?.IsRequired ?? true)
     setQMin(q?.scaleMin ?? q?.ScaleMin ?? 0)
     setQMax(q?.scaleMax ?? q?.ScaleMax ?? 5)
-    // restore selection using composite cloKey ("api:ID" or "db:ID")
-    const cloId = q?.externalCloId ?? q?.ExternalCloId
-    const src = q?.cloSource ?? q?.CloSource ?? 'api'
-    setQClo(cloId ? `${src}:${cloId}` : '')
+    const cid = q?.courseLearningOutcomeId ?? q?.CourseLearningOutcomeId
+    setQClo(cid ? String(cid) : '')
     setQOpen(true)
   }
 
@@ -140,23 +136,6 @@ export function TeacherSurveyDetailPage() {
     setQSaving(true)
     setError('')
     try {
-      // resolve CLO fields from the selected cloKey ("api:3" or "db:7")
-      let externalCloId = null
-      let cloSource = null
-      let cloCode = null
-      let cloDescription = null
-      if (qClo) {
-        const selectedClo = clos.find(
-          (c) => (c?.cloKey ?? c?.CloKey ?? `${c?.sourceType ?? c?.SourceType ?? 'api'}:${c?.id ?? c?.Id ?? ''}`) === qClo,
-        )
-        if (selectedClo) {
-          externalCloId = selectedClo?.id ?? selectedClo?.Id ?? null
-          cloSource = selectedClo?.sourceType ?? selectedClo?.SourceType ?? 'api'
-          cloCode = selectedClo?.code ?? selectedClo?.Code ?? null
-          cloDescription = selectedClo?.description ?? selectedClo?.Description ?? null
-        }
-      }
-      const cloFields = { externalCloId, cloSource, cloCode, cloDescription }
       if (editQ) {
         const qid = gid(editQ)
         const body = {
@@ -166,7 +145,7 @@ export function TeacherSurveyDetailPage() {
           isRequired: qRequired,
           scaleMin: Number(qMin) || 0,
           scaleMax: Number(qMax) || 5,
-          ...cloFields,
+          courseLearningOutcomeId: qClo ? qClo : null,
         }
         await updateTeacherSurveyQuestion(token, surveyId, qid, body)
       } else {
@@ -177,7 +156,7 @@ export function TeacherSurveyDetailPage() {
           isRequired: qRequired,
           scaleMin: Number(qMin) || 0,
           scaleMax: Number(qMax) || 5,
-          ...cloFields,
+          courseLearningOutcomeId: qClo ? qClo : null,
         }
         await addTeacherSurveyQuestion(token, surveyId, body)
       }
@@ -465,14 +444,11 @@ export function TeacherSurveyDetailPage() {
               <option value="">— Yok —</option>
               {clos.map((c) => {
                 const id = gid(c)
-                const src = c?.sourceType ?? c?.SourceType ?? 'api'
-                const key = c?.cloKey ?? c?.CloKey ?? `${src}:${id}`
                 const code = gstr(c, 'code', 'Code')
                 const desc = (gstr(c, 'description', 'Description') || '').slice(0, 80)
-                const srcLabel = src === 'db' ? ' [Yerel]' : ''
                 return (
-                  <option key={key} value={key}>
-                    {code}{srcLabel} {desc ? `— ${desc}` : ''}
+                  <option key={id} value={id}>
+                    {code} {desc ? `— ${desc}` : ''}
                   </option>
                 )
               })}

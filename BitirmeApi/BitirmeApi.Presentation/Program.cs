@@ -5,7 +5,6 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
-using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
 var isDevelopment = builder.Environment.IsDevelopment();
@@ -14,20 +13,8 @@ var isDevelopment = builder.Environment.IsDevelopment();
 builder.Services.AddDbContext<ProjectDbContext>(options =>
     options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
 
-// Memory Cache (KTUN servis tokenı için)
-builder.Services.AddMemoryCache();
-
-// HttpContextAccessor (UniversityApiService'in JWT claim'lerini okuyabilmesi için)
-builder.Services.AddHttpContextAccessor();
-
-// JWT Authentication
-// MÜDEK JWT tokenları (öğrenci/öğretim elemanı) kendi secret key'imizle imzalanmış ve doğrulanır.
-// Admin tokenları üniversite API'sinden gelir; imza doğrulaması yapılmaz (fallback).
-var jwtSecretKey = builder.Configuration["Jwt:SecretKey"] ?? string.Empty;
-var jwtIssuer = builder.Configuration["Jwt:Issuer"] ?? "MudekApi";
-var jwtAudience = builder.Configuration["Jwt:Audience"] ?? "MudekClient";
-var mudekSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSecretKey));
-
+// Üniversite API token'ını doğrudan kabul et — imza doğrulaması yapılmaz.
+// Signing key üniversitenin elindedir; biz sadece token'ı decode edip claim'leri okuruz.
 builder.Services.AddAuthentication(options =>
 {
     options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
@@ -35,51 +22,28 @@ builder.Services.AddAuthentication(options =>
 })
 .AddJwtBearer(options =>
 {
+    // Varsayılan JsonWebTokenHandler yolu, SignatureValidator'dan JwtSecurityToken dönünce uyumsuz kalıp 401 verebiliyor.
     options.UseSecurityTokenValidators = true;
     options.TokenValidationParameters = new TokenValidationParameters
     {
         ValidateIssuer = false,
         ValidateAudience = false,
+        // Üniversite token'ında exp/nbf farklı saat dilimleri veya kısa ömür geliştirmede sık 401 üretir.
         ValidateLifetime = !isDevelopment,
         ValidateIssuerSigningKey = false,
         RequireSignedTokens = false,
         RequireExpirationTime = false,
-        // MÜDEK tokenları imzalı: önce kendi key'imizle doğrulamayı dene.
-        // Admin/üniversite tokenları imzasız geçebilir (fallback).
-        SignatureValidator = (token, _) =>
-        {
-            var handler = new JwtSecurityTokenHandler();
-            if (!string.IsNullOrEmpty(jwtSecretKey))
-            {
-                try
-                {
-                    handler.ValidateToken(token, new TokenValidationParameters
-                    {
-                        ValidateIssuerSigningKey = true,
-                        IssuerSigningKey = mudekSigningKey,
-                        ValidateIssuer = true,
-                        ValidIssuer = jwtIssuer,
-                        ValidateAudience = true,
-                        ValidAudience = jwtAudience,
-                        ValidateLifetime = false,
-                        RequireExpirationTime = false
-                    }, out var validatedToken);
-                    return validatedToken;
-                }
-                catch
-                {
-                    // MÜDEK doğrulama başarısız — admin/üniversite token'ı olabilir, fallback ile devam
-                }
-            }
-            return handler.ReadJwtToken(token);
-        },
+        // Login tarafında claim'ler JwtSecurityToken ile okunuyor; JsonWebTokenHandler bazı üretici JWT'lerinde 401 üretebiliyor.
+        SignatureValidator = (token, _) => new JwtSecurityTokenHandler().ReadJwtToken(token),
+        // SignatureValidator JwtSecurityToken döndürünce default LifetimeValidator notBefore/expires parametrelerini
+        // null alıyor ve "missing Expiration Time" (IDX10225) hatası üretiyor. Token'daki exp'i doğrudan okuruz.
         LifetimeValidator = (notBefore, expires, securityToken, _) =>
         {
             var now = DateTime.UtcNow;
             var validTo = expires
                 ?? (securityToken as JwtSecurityToken)?.ValidTo
                 ?? DateTime.MinValue;
-            if (validTo == DateTime.MinValue) return true;
+            if (validTo == DateTime.MinValue) return true; // exp yoksa geç (üniversite token'ı zaten kısa ömürlü)
             return validTo.Add(TimeSpan.FromMinutes(5)) > now;
         },
         ClockSkew = TimeSpan.FromMinutes(isDevelopment ? 30 : 5)

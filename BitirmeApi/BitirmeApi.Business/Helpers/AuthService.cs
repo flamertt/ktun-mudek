@@ -5,26 +5,27 @@ using Microsoft.Extensions.Logging;
 
 namespace BitirmeApi.Business.Helpers
 {
+    /// <summary>
+    /// Tüm kimlik doğrulama üniversite API'si üzerinden yapılır.
+    /// Üniversite API'nin döndürdüğü token doğrudan istemciye iletilir — yerel JWT üretilmez.
+    /// </summary>
     public class AuthService : IAuthService
     {
         private readonly IUniversityApiService _universityApi;
-        private readonly ISchoolAuthService _schoolAuth;
         private readonly ILogger<AuthService> _logger;
 
-        public AuthService(
-            IUniversityApiService universityApi,
-            ISchoolAuthService schoolAuth,
-            ILogger<AuthService> logger)
+        public AuthService(IUniversityApiService universityApi, ILogger<AuthService> logger)
         {
             _universityApi = universityApi;
-            _schoolAuth = schoolAuth;
             _logger = logger;
         }
 
-        /// <summary>
-        /// Admin girişi — üniversite API token'ı doğrudan kullanılır, değiştirilmedi.
-        /// </summary>
-        public async Task<AuthResult> AdminLoginAsync(LoginDto loginDto)
+        public Task<AuthResult> AdminLoginAsync(LoginDto loginDto)   => LoginInternalAsync(loginDto);
+        public Task<AuthResult> TeacherLoginAsync(LoginDto loginDto)  => LoginInternalAsync(loginDto);
+        public Task<AuthResult> StudentLoginAsync(LoginDto loginDto)  => LoginInternalAsync(loginDto);
+        public Task<AuthResult> UniversityLoginAsync(LoginDto loginDto) => LoginInternalAsync(loginDto);
+
+        private async Task<AuthResult> LoginInternalAsync(LoginDto loginDto)
         {
             var uniResponse = await _universityApi.LoginAsync(loginDto.Email, loginDto.Password);
             if (uniResponse == null)
@@ -34,8 +35,9 @@ namespace BitirmeApi.Business.Helpers
             if (string.IsNullOrEmpty(uniToken))
                 return AuthResult.Unauthorized("Üniversite API'den token alınamadı");
 
+            // Rol üniversite token'ından olduğu gibi alınır, normalize edilmez
             var role = uniResponse.GetRole();
-            _logger.LogInformation("Admin giriş yaptı: {Email}, rol: {Role}", loginDto.Email, role);
+            _logger.LogInformation("Kullanıcı giriş yaptı: {Email}, rol: {Role}", loginDto.Email, role);
 
             return AuthResult.Ok(new AuthResponseDto
             {
@@ -50,20 +52,5 @@ namespace BitirmeApi.Business.Helpers
                 Message = "Giriş başarılı"
             });
         }
-
-        /// <summary>
-        /// Öğretim elemanı girişi — KTUN doğrulama + MÜDEK JWT akışı.
-        /// </summary>
-        public Task<AuthResult> TeacherLoginAsync(LoginDto loginDto)
-            => _schoolAuth.TeacherLoginAsync(loginDto);
-
-        /// <summary>
-        /// Öğrenci girişi — KTUN doğrulama + MÜDEK JWT akışı.
-        /// </summary>
-        public Task<AuthResult> StudentLoginAsync(LoginDto loginDto)
-            => _schoolAuth.StudentLoginAsync(loginDto);
-
-        public Task<AuthResult> UniversityLoginAsync(LoginDto loginDto)
-            => _schoolAuth.TeacherLoginAsync(loginDto);
     }
 }

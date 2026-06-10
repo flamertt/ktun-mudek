@@ -1,13 +1,7 @@
-import { getJson, postJson, postJsonWithAuth } from './httpClient'
+import { postJson, postJsonWithAuth } from './httpClient'
 
 const TEACHER_LOGIN_ENDPOINT = '/api/TeacherAuth/login'
 const TEACHER_LOGOUT_ENDPOINT = '/api/TeacherAuth/logout'
-const TEACHER_DEV_TOKEN_ENDPOINT = '/api/TeacherAuth/dev-token'
-
-/** [Sadece geliştirme] Parametre girmeden hazır test öğretmeni token'ı alır. */
-export function getDevToken() {
-  return getJson(TEACHER_DEV_TOKEN_ENDPOINT)
-}
 
 export function loginAsTeacher({ email, password }) {
   return postJson(TEACHER_LOGIN_ENDPOINT, { email, password })

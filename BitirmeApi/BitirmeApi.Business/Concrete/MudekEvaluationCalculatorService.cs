@@ -1,8 +1,6 @@
 using BitirmeApi.Business.Abstract;
-using BitirmeApi.Business.Constants;
 using BitirmeApi.Business.DTO;
 using BitirmeApi.Business.Integration.Abstract;
-using BitirmeApi.Business.Integration.DTOs;
 using BitirmeApi.DataAccess.Concrete.EntityFramework.Context;
 using BitirmeApi.Entity.Entities;
 using Microsoft.EntityFrameworkCore;
@@ -13,19 +11,11 @@ namespace BitirmeApi.Business.Concrete
     {
         private readonly ProjectDbContext _db;
         private readonly IUniversityApiService _universityApi;
-        private readonly ICourseCloService _courseCloService;
-        private readonly ICourseCloPloMapService _courseCloPloMapService;
 
-        public MudekEvaluationCalculatorService(
-            ProjectDbContext db,
-            IUniversityApiService universityApi,
-            ICourseCloService courseCloService,
-            ICourseCloPloMapService courseCloPloMapService)
+        public MudekEvaluationCalculatorService(ProjectDbContext db, IUniversityApiService universityApi)
         {
             _db = db;
             _universityApi = universityApi;
-            _courseCloService = courseCloService;
-            _courseCloPloMapService = courseCloPloMapService;
         }
 
         public async Task<MudekEvaluationSnapshotDto?> GetSnapshotAsync(int externalCourseOfferingId, int externalTeacherId, CancellationToken ct = default)
@@ -142,62 +132,9 @@ namespace BitirmeApi.Business.Concrete
             if (evaluation.ExternalTeacherId != externalTeacherId)
                 throw new UnauthorizedAccessException("Bu ders değerlendirmesi size ait değil.");
 
-            // 2) CLO ve CLO–PÇ matrisini çek — kaynak kilidi mantığı
-            //    CloDataSource = "db"  → yerel CLO kilitli, API'ye bakma
-            //    CloDataSource = "api" → API kullan
-            //    CloDataSource = null  → otomatik belirle; API doluysa "api" kilitle, boşsa "db" kilitle
-            List<UniversityCloDto> clos;
-            List<UniversityCloPloMapDto> cloPoMaps;
-
-            if (evaluation.CloDataSource == CloSourceType.Db)
-            {
-                // Yerel CLO kilitli — API'yi atla
-                var dbClos = await _courseCloService.GetByExternalCourseIdAsync(evaluation.ExternalCourseId);
-                clos = dbClos.Select(c => new UniversityCloDto
-                {
-                    CloId = c.Id,
-                    Description = $"{(c.Code != null ? c.Code + " — " : "")}{c.Description}"
-                }).ToList();
-
-                var dbMaps = await _courseCloPloMapService.GetByExternalCourseIdAsync(evaluation.ExternalCourseId);
-                cloPoMaps = dbMaps.Select(m => new UniversityCloPloMapDto
-                {
-                    CloId = m.CourseCloId,
-                    ProgramOutcomeId = m.ExternalPloId,
-                    Weight = (int)Math.Round(m.Weight * 100)
-                }).ToList();
-            }
-            else
-            {
-                // API veya henüz belirlenmemiş
-                clos = await _universityApi.GetClosByCourseidAsync(evaluation.ExternalCourseId, universityToken);
-
-                if (clos.Count > 0)
-                {
-                    // API doldu → API kilitle
-                    evaluation.CloDataSource = CloSourceType.Api;
-                    cloPoMaps = await _universityApi.GetCloPloMapAsync(evaluation.ExternalCourseId, universityToken);
-                }
-                else
-                {
-                    // API boş → yerel CLO'ya düş ve DB kaynağını kilitle
-                    evaluation.CloDataSource = CloSourceType.Db;
-                    var dbClos = await _courseCloService.GetByExternalCourseIdAsync(evaluation.ExternalCourseId);
-                    clos = dbClos.Select(c => new UniversityCloDto
-                    {
-                        CloId = c.Id,
-                        Description = $"{(c.Code != null ? c.Code + " — " : "")}{c.Description}"
-                    }).ToList();
-
-                    var dbMaps = await _courseCloPloMapService.GetByExternalCourseIdAsync(evaluation.ExternalCourseId);
-                    cloPoMaps = dbMaps.Select(m => new UniversityCloPloMapDto
-                    {
-                        CloId = m.CourseCloId,
-                        ProgramOutcomeId = m.ExternalPloId,
-                        Weight = (int)Math.Round(m.Weight * 100)
-                    }).ToList();
-                }
-            }
+            // 2) Üniversite API'den CLO ve CLO-PÇ matrisini çek
+            var clos = await _universityApi.GetClosByCourseidAsync(evaluation.ExternalCourseId, universityToken);
+            var cloPoMaps = await _universityApi.GetCloPloMapAsync(evaluation.ExternalCourseId, universityToken);
 
             // 3) Üniversite API'den öğrenci listesini çek
             var students = await _universityApi.GetStudentsForOfferingAsync(
@@ -357,18 +294,7 @@ namespace BitirmeApi.Business.Concrete
             var examRows = new List<ExamEvaluationResult>();
             var questionRows = new List<ExamQuestionEvaluationResult>();
             var questionAchievementRates = new Dictionary<(Guid ExamId, Guid ItemId), decimal>();
-
-            // Bir öğrencinin belirli bir sınava katılıp katılmadığını belirler.
-            // "Katıldı" = o sınava ait en az bir soru/bileşen için cevap/puan kaydı bulunuyor.
-            // null (boş bırakılmış) → kayıt yok → sınava girmemiş; 0 → girmiş, puan alamadı.
-            bool StudentAttendedExam(Exam ex, int studentId)
-            {
-                var examQIds = questions.Where(q => q.ExamId == ex.Id).Select(q => q.Id).ToHashSet();
-                if (answers.Any(a => examQIds.Contains(a.ExamQuestionId) && a.ExternalStudentId == studentId))
-                    return true;
-                var examCIds = components.Where(c => c.ExamId == ex.Id && c.IsActive).Select(c => c.Id).ToHashSet();
-                return compScores.Any(s => examCIds.Contains(s.AssessmentComponentId) && s.ExternalStudentId == studentId);
-            }
+            int passedStudentCount = students.Count(s => passedIds.Contains(s.StudentId));
 
             foreach (var ex in exams)
             {
@@ -393,18 +319,11 @@ namespace BitirmeApi.Business.Concrete
                     UpdatedAt = now
                 });
 
-                // Bu sınava hem katılmış hem dersi geçmiş öğrenciler.
-                // Bütünlemeye girmeyen, vizelesi+finali ile geçen öğrenci bütünleme hesabına dahil edilmez.
-                var attendedPassedIds = passedIds
-                    .Where(sid => StudentAttendedExam(ex, sid))
-                    .ToHashSet();
-                int attendedPassedCount = attendedPassedIds.Count;
-
                 foreach (var q in questions.Where(qq => qq.ExamId == ex.Id).OrderBy(qq => qq.QuestionNumber))
                 {
-                    var sumScores = students.Where(s => attendedPassedIds.Contains(s.StudentId))
+                    var sumScores = students.Where(s => passedIds.Contains(s.StudentId))
                         .Sum(s => answerScores.GetValueOrDefault((q.Id, s.StudentId)));
-                    decimal? avg = attendedPassedCount > 0 ? sumScores / attendedPassedCount : null;
+                    decimal? avg = passedStudentCount > 0 ? sumScores / passedStudentCount : null;
                     decimal? rate = avg.HasValue && q.MaxScore > 0 ? avg.Value / q.MaxScore : null;
                     if (rate.HasValue) questionAchievementRates[(ex.Id, q.Id)] = rate.Value;
 
@@ -419,23 +338,16 @@ namespace BitirmeApi.Business.Concrete
                         MaxScore = q.MaxScore,
                         AverageScore = avg,
                         AchievementRate = rate,
-                        IncludedStudentCount = attendedPassedCount,
+                        IncludedStudentCount = passedStudentCount,
                         UpdatedAt = now
                     });
                 }
 
                 foreach (var c in components.Where(cc => cc.ExamId == ex.Id).OrderBy(cc => cc.OrderIndex))
                 {
-                    // Bileşenler bağımsız aktivitelerdir (ödev, lab vb.).
-                    // Sınava girmiş olsa bile bu bileşen için puan kaydı yoksa dahil etme.
-                    var componentPassedIds = passedIds
-                        .Where(sid => compScores.Any(s => s.AssessmentComponentId == c.Id && s.ExternalStudentId == sid))
-                        .ToHashSet();
-                    int componentPassedCount = componentPassedIds.Count;
-
-                    var sumC = students.Where(s => componentPassedIds.Contains(s.StudentId))
+                    var sumC = students.Where(s => passedIds.Contains(s.StudentId))
                         .Sum(s => compScoreLookup.GetValueOrDefault((c.Id, s.StudentId)));
-                    decimal? avgC = componentPassedCount > 0 ? sumC / componentPassedCount : null;
+                    decimal? avgC = passedStudentCount > 0 ? sumC / passedStudentCount : null;
                     decimal? rateC = avgC.HasValue && c.MaxScore > 0 ? avgC.Value / c.MaxScore : null;
                     if (rateC.HasValue) questionAchievementRates[(ex.Id, c.Id)] = rateC.Value;
 
@@ -450,7 +362,7 @@ namespace BitirmeApi.Business.Concrete
                         MaxScore = c.MaxScore,
                         AverageScore = avgC,
                         AchievementRate = rateC,
-                        IncludedStudentCount = componentPassedCount,
+                        IncludedStudentCount = passedStudentCount,
                         UpdatedAt = now
                     });
                 }

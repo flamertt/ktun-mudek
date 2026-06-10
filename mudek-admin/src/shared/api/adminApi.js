@@ -47,64 +47,6 @@ export function fetchUniversityCourseCloPoMap(token, courseId) {
   return getJson(`${ADMIN}/university/courses/${courseId}/clo-po-map`, { token: authToken(token) })
 }
 
-/** Admin: bir öğretmenin belirli dönemdeki derslerini çeker (courseId bulmak için). */
-export function fetchTeacherCoursesByEmail(token, email, academicTermId) {
-  return getJson(`${ADMIN}/university/teacher-courses`, { token: authToken(token), query: { email, academicTermId } })
-}
-
-// ═══════════════════════════════════════════════════════════════════════════
-// Yerel CLO Yönetimi
-// ═══════════════════════════════════════════════════════════════════════════
-
-export function fetchLocalClos(token, externalCourseId) {
-  return getJson(`${ADMIN}/courses/${externalCourseId}/local-clos`, { token: authToken(token) })
-}
-
-export function fetchMergedClos(token, externalCourseId) {
-  return getJson(`${ADMIN}/courses/${externalCourseId}/clos/merged`, { token: authToken(token) })
-}
-
-export function createLocalClo(token, body) {
-  return postJsonWithAuth(`${ADMIN}/local-clos`, body, authToken(token))
-}
-
-export function updateLocalClo(token, id, body) {
-  return putJsonWithAuth(`${ADMIN}/local-clos/${id}`, body, authToken(token))
-}
-
-export function deleteLocalClo(token, id) {
-  return deleteJsonWithAuth(`${ADMIN}/local-clos/${id}`, authToken(token))
-}
-
-/** CLO kaynak kilidini sıfırlar — admin tarafı için yardımcı endpoint (TeacherController değil; future admin override). */
-export function resetCloLock(token, evaluationId) {
-  return deleteJsonWithAuth(`/api/Teacher/evaluations/${evaluationId}/clo-lock`, authToken(token))
-}
-
-// ═══════════════════════════════════════════════════════════════════════════
-// Yerel CLO–PO Eşleme
-// ═══════════════════════════════════════════════════════════════════════════
-
-export function fetchPloMapsByClo(token, cloId) {
-  return getJson(`${ADMIN}/local-clos/${cloId}/plo-maps`, { token: authToken(token) })
-}
-
-export function fetchPloMapsByCourse(token, externalCourseId) {
-  return getJson(`${ADMIN}/courses/${externalCourseId}/local-plo-maps`, { token: authToken(token) })
-}
-
-export function createPloMap(token, body) {
-  return postJsonWithAuth(`${ADMIN}/local-plo-maps`, body, authToken(token))
-}
-
-export function updatePloMap(token, id, body) {
-  return putJsonWithAuth(`${ADMIN}/local-plo-maps/${id}`, body, authToken(token))
-}
-
-export function deletePloMap(token, id) {
-  return deleteJsonWithAuth(`${ADMIN}/local-plo-maps/${id}`, authToken(token))
-}
-
 // ═══════════════════════════════════════════════════════════════════════════
 // MÜDEK ders değerlendirmeleri (CourseEvaluation)
 // ═══════════════════════════════════════════════════════════════════════════

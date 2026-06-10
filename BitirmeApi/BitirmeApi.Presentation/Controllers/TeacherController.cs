@@ -1,22 +1,18 @@
 using BitirmeApi.Business.Abstract;
-using BitirmeApi.Business.Constants;
 using BitirmeApi.Business.DTO;
 using BitirmeApi.Business.Integration.Abstract;
-using BitirmeApi.DataAccess.Concrete.EntityFramework.Context;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 using System.Security.Claims;
 
 namespace BitirmeApi.Presentation.Controllers
 {
     [Route("api/[controller]")]
     [ApiController]
-    [Authorize(Roles = "Instructor,Staff")]
+    [Authorize]
     public class TeacherController : ControllerBase
     {
         private readonly IUniversityApiService _universityApi;
-        private readonly IKtunServiceTokenService _ktunServiceToken;
         private readonly ICourseEvaluationService _evaluationService;
         private readonly IExamService _examService;
         private readonly IExamQuestionService _questionService;
@@ -27,12 +23,9 @@ namespace BitirmeApi.Presentation.Controllers
         private readonly IStudentAssessmentComponentScoreService _componentScoreService;
         private readonly IMudekEvaluationCalculatorService _mudekCalculator;
         private readonly ISurveyService _surveyService;
-        private readonly ICourseCloService _courseCloService;
-        private readonly ProjectDbContext _db;
 
         public TeacherController(
             IUniversityApiService universityApi,
-            IKtunServiceTokenService ktunServiceToken,
             ICourseEvaluationService evaluationService,
             IExamService examService,
             IExamQuestionService questionService,
@@ -42,12 +35,9 @@ namespace BitirmeApi.Presentation.Controllers
             IStudentAnswerService studentAnswerService,
             IStudentAssessmentComponentScoreService componentScoreService,
             IMudekEvaluationCalculatorService mudekCalculator,
-            ISurveyService surveyService,
-            ICourseCloService courseCloService,
-            ProjectDbContext db)
+            ISurveyService surveyService)
         {
             _universityApi = universityApi;
-            _ktunServiceToken = ktunServiceToken;
             _evaluationService = evaluationService;
             _examService = examService;
             _questionService = questionService;
@@ -58,28 +48,27 @@ namespace BitirmeApi.Presentation.Controllers
             _componentScoreService = componentScoreService;
             _mudekCalculator = mudekCalculator;
             _surveyService = surveyService;
-            _courseCloService = courseCloService;
-            _db = db;
         }
 
-        /// <summary>MÜDEK JWT'sindeki kullanıcı numarası (sub/numara claim).</summary>
+        /// <summary>Üniversite JWT'sindeki kullanıcı ID'si (sub claim).</summary>
         private int GetExternalTeacherId()
         {
             var val = User.FindFirst(ClaimTypes.NameIdentifier)?.Value
                    ?? User.FindFirst("sub")?.Value
-                   ?? User.FindFirst("numara")?.Value
                    ?? User.FindFirst("nameid")?.Value;
             if (string.IsNullOrEmpty(val) || !int.TryParse(val, out var id))
                 throw new UnauthorizedAccessException("Kullanıcı ID claim bulunamadı.");
             return id;
         }
 
-        /// <summary>
-        /// KTUN servis tokenını döner (usrMudek hesabı ile alınan backend token'ı).
-        /// MÜDEK JWT'sinden değil, IKtunServiceTokenService'den alınır.
-        /// </summary>
-        private async Task<string> GetKtunServiceTokenAsync()
-            => await _ktunServiceToken.GetTokenAsync();
+        /// <summary>Authorization header'daki Bearer token'ı döndürür (üniversite API token'ı).</summary>
+        private string GetUniversityToken()
+        {
+            var header = HttpContext.Request.Headers["Authorization"].FirstOrDefault();
+            if (string.IsNullOrEmpty(header) || !header.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase))
+                throw new UnauthorizedAccessException("Authorization header bulunamadı.");
+            return header["Bearer ".Length..].Trim();
+        }
 
         // ════════════════════════════════════════════════════════════════════════
         // AKADEMİK DÖNEMLER
@@ -89,7 +78,7 @@ namespace BitirmeApi.Presentation.Controllers
         [HttpGet("academic-terms")]
         public async Task<IActionResult> GetAcademicTerms()
         {
-            try { return Ok(await _universityApi.GetAcademicTermsAsync(await GetKtunServiceTokenAsync())); }
+            try { return Ok(await _universityApi.GetAcademicTermsAsync(GetUniversityToken())); }
             catch (Exception ex) { return BadRequest(new { message = ex.Message }); }
         }
 
@@ -99,37 +88,32 @@ namespace BitirmeApi.Presentation.Controllers
 
         /// <summary>
         /// Öğretmenin üniversite API'sinde tanımlı aktif dönemdeki (en yüksek dönem Id) derslerini çeker.
-        /// Yanıt her offering'e academicTermId ve academicTermName içerir.
         /// </summary>
         [HttpGet("my-courses")]
         public async Task<IActionResult> GetMyCourses()
         {
             try
             {
-                var token = await GetKtunServiceTokenAsync();
+                var token = GetUniversityToken();
                 var activeTerm = await _universityApi.GetActiveAcademicTermAsync(token);
                 if (activeTerm == null)
                     return NotFound(new { message = "Aktif akademik dönem bulunamadı." });
 
-                var courses = await _universityApi.GetTeacherOfferingsWithTermAsync(
+                var courses = await _universityApi.GetTeacherOfferingsAsync(
                     GetExternalTeacherId(), activeTerm.AcademicTermId, token);
                 return Ok(courses);
             }
             catch (Exception ex) { return BadRequest(new { message = ex.Message }); }
         }
 
-        /// <summary>
-        /// Verilen akademik dönem Id için öğretmenin derslerini üniversite API'sinden çeker.
-        /// Yanıt her offering'e academicTermId ve academicTermName içerir.
-        /// </summary>
+        /// <summary>Verilen akademik dönem Id için öğretmenin derslerini üniversite API'sinden çeker.</summary>
         [HttpGet("my-courses/academic-terms")]
         public async Task<IActionResult> GetMyCoursesByAcademicTerm([FromQuery] int termId)
         {
             try
             {
-                var token = await GetKtunServiceTokenAsync();
-                var courses = await _universityApi.GetTeacherOfferingsWithTermAsync(
-                    GetExternalTeacherId(), termId, token);
+                var courses = await _universityApi.GetTeacherOfferingsAsync(
+                    GetExternalTeacherId(), termId, GetUniversityToken());
                 return Ok(courses);
             }
             catch (Exception ex) { return BadRequest(new { message = ex.Message }); }
@@ -141,7 +125,7 @@ namespace BitirmeApi.Presentation.Controllers
         {
             try
             {
-                var detail = await _universityApi.GetCourseOfferingDetailAsync(GetExternalTeacherId(), offeringId, await GetKtunServiceTokenAsync());
+                var detail = await _universityApi.GetCourseOfferingDetailAsync(GetExternalTeacherId(), offeringId, GetUniversityToken());
                 return detail == null
                     ? NotFound(new { message = "Ders açılışı bulunamadı." })
                     : Ok(detail);
@@ -155,7 +139,7 @@ namespace BitirmeApi.Presentation.Controllers
         {
             try
             {
-                var students = await _universityApi.GetStudentsForOfferingAsync(GetExternalTeacherId(), offeringId, await GetKtunServiceTokenAsync());
+                var students = await _universityApi.GetStudentsForOfferingAsync(GetExternalTeacherId(), offeringId, GetUniversityToken());
                 return students == null
                     ? NotFound(new { message = "Ders açılışı bulunamadı." })
                     : Ok(students);
@@ -163,127 +147,18 @@ namespace BitirmeApi.Presentation.Controllers
             catch (Exception ex) { return BadRequest(new { message = ex.Message }); }
         }
 
-        /// <summary>
-        /// Belirtilen ders açılışına ait CLO listesini döner.
-        /// Üniversite API'si boş dönerse admin tarafından eklenen yerel CLO'lar devreye girer.
-        /// Yanıt: [{ id, cloId, code, description, source: "api"|"db", cloKey: "api:N"|"db:N" }]
-        /// Öğretmen bu listeyi kullanarak soru/bileşen–CLO eşlemesi yapar; eşlemede cloKey ile kaynak kaydedilir.
-        /// </summary>
+        /// <summary>Belirtilen ders açılışına ait DÖÇ listesini üniversite API'sinden çeker (anket sorusu eklemek için).</summary>
         [HttpGet("my-courses/{offeringId}/clos")]
         public async Task<IActionResult> GetClosByOffering(int offeringId)
         {
             try
             {
-                var ktunToken = await GetKtunServiceTokenAsync();
-                var detail = await _universityApi.GetCourseOfferingDetailAsync(GetExternalTeacherId(), offeringId, ktunToken);
+                // Önce courseId'yi öğren
+                var detail = await _universityApi.GetCourseOfferingDetailAsync(GetExternalTeacherId(), offeringId, GetUniversityToken());
                 if (detail == null) return NotFound(new { message = "Ders açılışı bulunamadı." });
 
-                var apiClos = await _universityApi.GetClosByCourseidAsync(detail.CourseId, ktunToken);
-                if (apiClos.Count > 0)
-                    return Ok(new
-                    {
-                        source = CloSourceType.Api,
-                        clos = apiClos.Select(c => new
-                        {
-                            id = c.CloId.ToString(),
-                            cloId = c.CloId,
-                            code = $"CLO-{c.CloId}",
-                            description = c.Description,
-                            source = CloSourceType.Api,
-                            cloKey = $"{CloSourceType.Api}:{c.CloId}"
-                        })
-                    });
-
-                // API boş → yerel CLO
-                var dbClos = await _courseCloService.GetByExternalCourseIdAsync(detail.CourseId);
-                return Ok(new
-                {
-                    source = CloSourceType.Db,
-                    clos = dbClos.Select(c => new
-                    {
-                        id = c.Id.ToString(),
-                        cloId = c.Id,
-                        code = c.Code ?? $"CLO-{c.Id}",
-                        description = c.Description,
-                        source = CloSourceType.Db,
-                        cloKey = $"{CloSourceType.Db}:{c.Id}"
-                    })
-                });
-            }
-            catch (Exception ex) { return BadRequest(new { message = ex.Message }); }
-        }
-
-        /// <summary>
-        /// CourseEvaluation için CLO kaynak kilidini sıfırlar (CloDataSource = null).
-        /// Aynı zamanda bu değerlendirmeye bağlı sınav sorularının ve bileşenlerin
-        /// tüm CLO eşlemeleri (ExamQuestionOutcomeMapping, AssessmentComponentOutcomeMapping) silinir;
-        /// çünkü kaynak değişince eski CLO ID'leri geçersiz olur ve hesaplama boş sonuç üretir.
-        /// Öğretmen yeni kaynak netleştikten sonra eşlemeleri yeniden yapmalıdır.
-        /// </summary>
-        [HttpDelete("evaluations/{evaluationId}/clo-lock")]
-        public async Task<IActionResult> ResetCloLock(Guid evaluationId)
-        {
-            try
-            {
-                var eval = await _db.CourseEvaluations
-                    .Include(e => e.Exams)
-                    .FirstOrDefaultAsync(e => e.Id == evaluationId);
-                if (eval == null) return NotFound(new { message = "Değerlendirme bulunamadı." });
-                if (eval.ExternalTeacherId != GetExternalTeacherId())
-                    return Forbid();
-
-                var prev = eval.CloDataSource;
-                var examIds = eval.Exams.Select(e => e.Id).ToList();
-
-                // Sınav sorusu CLO eşlemelerini temizle
-                var questionMappings = await _db.ExamQuestionOutcomeMappings
-                    .Where(m => _db.ExamQuestions
-                        .Where(q => examIds.Contains(q.ExamId))
-                        .Select(q => q.Id)
-                        .Contains(m.ExamQuestionId))
-                    .ToListAsync();
-                _db.ExamQuestionOutcomeMappings.RemoveRange(questionMappings);
-
-                // Bileşen CLO eşlemelerini temizle
-                var componentMappings = await _db.AssessmentComponentOutcomeMappings
-                    .Where(m => _db.AssessmentComponents
-                        .Where(c => examIds.Contains(c.ExamId))
-                        .Select(c => c.Id)
-                        .Contains(m.AssessmentComponentId))
-                    .ToListAsync();
-                _db.AssessmentComponentOutcomeMappings.RemoveRange(componentMappings);
-
-                // Anket sorusu CLO atamalarını temizle
-                // (Question.ExternalCloId doğrudan entity üzerinde tutulur — kaynak değişince geçersiz olur)
-                var surveyQuestions = await _db.Questions
-                    .Where(q => _db.Surveys
-                        .Where(s => s.ExternalCourseOfferingId == eval.ExternalCourseOfferingId)
-                        .Select(s => s.Id)
-                        .Contains(q.SurveyId)
-                        && q.ExternalCloId != null)
-                    .ToListAsync();
-                foreach (var sq in surveyQuestions)
-                {
-                    sq.ExternalCloId = null;
-                    sq.CloSource = null;
-                    sq.CloCode = null;
-                    sq.CloDescription = null;
-                }
-
-                eval.CloDataSource = null;
-                eval.IsCalculationDirty = true;
-                eval.UpdatedAt = DateTime.UtcNow;
-
-                await _db.SaveChangesAsync();
-
-                return Ok(new
-                {
-                    message = "CLO kaynak kilidi sıfırlandı. Sınav sorusu, bileşen ve anket sorusu CLO eşlemeleri temizlendi; yeniden eşleme yapılması gerekiyor.",
-                    previousSource = prev,
-                    deletedQuestionMappings = questionMappings.Count,
-                    deletedComponentMappings = componentMappings.Count,
-                    clearedSurveyQuestionClos = surveyQuestions.Count
-                });
+                var clos = await _universityApi.GetClosByCourseidAsync(detail.CourseId, GetUniversityToken());
+                return Ok(clos);
             }
             catch (Exception ex) { return BadRequest(new { message = ex.Message }); }
         }
@@ -294,11 +169,10 @@ namespace BitirmeApi.Presentation.Controllers
         {
             try
             {
-                var ktunToken = await GetKtunServiceTokenAsync();
-                var detail = await _universityApi.GetCourseOfferingDetailAsync(GetExternalTeacherId(), offeringId, ktunToken);
+                var detail = await _universityApi.GetCourseOfferingDetailAsync(GetExternalTeacherId(), offeringId, GetUniversityToken());
                 if (detail == null) return NotFound(new { message = "Ders açılışı bulunamadı." });
 
-                var outcomes = await _universityApi.GetProgramOutcomesAsync(detail.ProgramId, ktunToken);
+                var outcomes = await _universityApi.GetProgramOutcomesAsync(detail.ProgramId, GetUniversityToken());
                 return Ok(outcomes);
             }
             catch (Exception ex) { return BadRequest(new { message = ex.Message }); }
@@ -308,7 +182,7 @@ namespace BitirmeApi.Presentation.Controllers
         [HttpGet("courses/{courseId}/clo-po-map")]
         public async Task<IActionResult> GetCloPloMap(int courseId)
         {
-            try { return Ok(await _universityApi.GetCloPloMapAsync(courseId, await GetKtunServiceTokenAsync())); }
+            try { return Ok(await _universityApi.GetCloPloMapAsync(courseId, GetUniversityToken())); }
             catch (Exception ex) { return BadRequest(new { message = ex.Message }); }
         }
 
@@ -339,7 +213,7 @@ namespace BitirmeApi.Presentation.Controllers
             dto.ExternalCourseOfferingId = offeringId;
             try
             {
-                var result = await _evaluationService.CreateForTeacherAsync(dto, GetExternalTeacherId(), await GetKtunServiceTokenAsync());
+                var result = await _evaluationService.CreateForTeacherAsync(dto, GetExternalTeacherId(), GetUniversityToken());
                 return CreatedAtAction(nameof(GetEvaluation), new { offeringId }, result);
             }
             catch (KeyNotFoundException ex) { return NotFound(new { message = ex.Message }); }
@@ -759,7 +633,7 @@ namespace BitirmeApi.Presentation.Controllers
         {
             try
             {
-                return Ok(await _mudekCalculator.RecalculateAsync(externalCourseOfferingId, GetExternalTeacherId(), await GetKtunServiceTokenAsync()));
+                return Ok(await _mudekCalculator.RecalculateAsync(externalCourseOfferingId, GetExternalTeacherId(), GetUniversityToken()));
             }
             catch (InvalidOperationException ex) { return BadRequest(new { message = ex.Message }); }
             catch (UnauthorizedAccessException) { return Forbid(); }
@@ -895,56 +769,9 @@ namespace BitirmeApi.Presentation.Controllers
         [HttpGet("surveys/{surveyId}/results")]
         public async Task<IActionResult> GetSurveyResults(Guid surveyId)
         {
-            try { return Ok(await _surveyService.GetResultsAsync(surveyId, GetExternalTeacherId(), await GetKtunServiceTokenAsync())); }
+            try { return Ok(await _surveyService.GetResultsAsync(surveyId, GetExternalTeacherId(), GetUniversityToken())); }
             catch (KeyNotFoundException ex) { return NotFound(new { message = ex.Message }); }
             catch (UnauthorizedAccessException) { return Forbid(); }
-        }
-
-        // ════════════════════════════════════════════════════════════════════════
-        // CLO LİSTESİ — soru/bileşen eşlemesi için
-        // ════════════════════════════════════════════════════════════════════════
-
-        /// <summary>
-        /// Bir kurs için CLO listesini döner.
-        /// Önce üniversite API'si denenir; boş dönerse admin tarafından girilmiş yerel CLO'lar kullanılır.
-        /// Öğretmen soru/bileşen–CLO eşlemesinde bu listeyi kullanır.
-        /// </summary>
-        [HttpGet("courses/{externalCourseId:int}/clos")]
-        public async Task<IActionResult> GetCourseClos(int externalCourseId)
-        {
-            try
-            {
-                var token = await GetKtunServiceTokenAsync();
-                var apiClos = await _universityApi.GetClosByCourseidAsync(externalCourseId, token);
-                if (apiClos.Count > 0)
-                    return Ok(new
-                    {
-                        source = CloSourceType.Api,
-                        clos = apiClos.Select(c => new
-                        {
-                            cloId = c.CloId,
-                            description = c.Description,
-                            code = $"CLO-{c.CloId}",
-                            source = CloSourceType.Api,
-                            cloKey = $"{CloSourceType.Api}:{c.CloId}"
-                        })
-                    });
-
-                var dbClos = await _courseCloService.GetByExternalCourseIdAsync(externalCourseId);
-                return Ok(new
-                {
-                    source = CloSourceType.Db,
-                    clos = dbClos.Select(c => new
-                    {
-                        cloId = c.Id,
-                        description = $"{(c.Code != null ? c.Code + " — " : "")}{c.Description}",
-                        code = c.Code ?? $"CLO-{c.Id}",
-                        source = CloSourceType.Db,
-                        cloKey = $"{CloSourceType.Db}:{c.Id}"
-                    })
-                });
-            }
-            catch (Exception ex) { return BadRequest(new { message = ex.Message }); }
         }
     }
 }

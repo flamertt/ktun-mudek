@@ -23,17 +23,9 @@ namespace BitirmeApi.Business.DTO
         public bool IsSuccess { get; private set; }
         public string? ErrorMessage { get; private set; }
         public int StatusCode { get; private set; }
-
-        /// <summary>
-        /// Admin login için üniversite API yanıtı (AuthResponseDto).
-        /// Öğrenci/öğretim elemanı login için AuthLoginResponseDto kullanılır.
-        /// </summary>
-        public object? Data { get; private set; }
+        public AuthResponseDto? Data { get; private set; }
 
         public static AuthResult Ok(AuthResponseDto data) =>
-            new AuthResult { IsSuccess = true, Data = data, StatusCode = 200 };
-
-        public static AuthResult Ok(AuthLoginResponseDto data) =>
             new AuthResult { IsSuccess = true, Data = data, StatusCode = 200 };
 
         public static AuthResult Unauthorized(string message) =>
@@ -41,8 +33,5 @@ namespace BitirmeApi.Business.DTO
 
         public static AuthResult Forbidden(string message) =>
             new AuthResult { IsSuccess = false, ErrorMessage = message, StatusCode = 403 };
-
-        public static AuthResult BadGateway(string message) =>
-            new AuthResult { IsSuccess = false, ErrorMessage = message, StatusCode = 502 };
     }
 }

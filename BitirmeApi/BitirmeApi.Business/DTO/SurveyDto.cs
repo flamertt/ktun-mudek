@@ -64,13 +64,8 @@ namespace BitirmeApi.Business.DTO
         public int ScaleMin { get; set; }
         public int ScaleMax { get; set; }
         public int? ExternalCloId { get; set; }
-        public string? CloSource { get; set; }
         public string? CloCode { get; set; }
         public string? CloDescription { get; set; }
-        /// <summary>"api:ID" veya "db:ID" formatında bileşik CLO anahtarı.</summary>
-        public string? CloKey => ExternalCloId.HasValue && CloSource != null
-            ? $"{CloSource}:{ExternalCloId}"
-            : null;
     }
 
     public class CreateSurveyQuestionDto
@@ -91,8 +86,6 @@ namespace BitirmeApi.Business.DTO
         public int ScaleMax { get; set; } = 5;
 
         public int? ExternalCloId { get; set; }
-        [MaxLength(8)]
-        public string? CloSource { get; set; }
         [MaxLength(64)]
         public string? CloCode { get; set; }
         [MaxLength(2000)]
@@ -117,8 +110,6 @@ namespace BitirmeApi.Business.DTO
         public int ScaleMax { get; set; }
 
         public int? ExternalCloId { get; set; }
-        [MaxLength(8)]
-        public string? CloSource { get; set; }
         [MaxLength(64)]
         public string? CloCode { get; set; }
         [MaxLength(2000)]
@@ -128,8 +119,6 @@ namespace BitirmeApi.Business.DTO
     public class CloSurveyResultDto
     {
         public int ExternalCloId { get; set; }
-        public string? CloSource { get; set; }
-        public string? CloKey => $"{CloSource ?? "api"}:{ExternalCloId}";
         public string? CloCode { get; set; }
         public string? CloDescription { get; set; }
         public int QuestionCount { get; set; }

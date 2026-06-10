@@ -1,5 +1,4 @@
 using BitirmeApi.Business.Abstract;
-using BitirmeApi.Business.Constants;
 using BitirmeApi.Business.DTO;
 using BitirmeApi.DataAccess.Abstract;
 using BitirmeApi.Entity.Entities;
@@ -37,13 +36,11 @@ namespace BitirmeApi.Business.Concrete
             if (await _mappingDal.ExistsAsync(createDto.AssessmentComponentId, createDto.ExternalCloId))
                 throw new InvalidOperationException("Bu component için CLO eşlemesi zaten var.");
 
-            var cloSource = CloSourceType.IsValid(createDto.CloSource) ? createDto.CloSource : CloSourceType.Api;
             var entity = new AssessmentComponentOutcomeMapping
             {
                 Id = Guid.NewGuid(),
                 AssessmentComponentId = createDto.AssessmentComponentId,
                 ExternalCloId = createDto.ExternalCloId,
-                CloSource = cloSource,
                 CloCode = createDto.CloCode,
                 CloDescription = createDto.CloDescription,
                 Weight = createDto.Weight,
@@ -106,7 +103,6 @@ namespace BitirmeApi.Business.Concrete
                 Id = m.Id,
                 AssessmentComponentId = m.AssessmentComponentId,
                 ExternalCloId = m.ExternalCloId,
-                CloSource = m.CloSource,
                 CloCode = m.CloCode,
                 CloDescription = m.CloDescription,
                 Weight = m.Weight,

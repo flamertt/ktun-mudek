@@ -1,5 +1,5 @@
 import { createColumnHelper } from '@tanstack/react-table'
-import { useCallback, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useParams } from 'react-router-dom'
 
 import { PageSection } from '@shared/ui/page-section/PageSection.jsx'
@@ -36,37 +36,22 @@ export function MudekStudentResultsPage() {
     return d.sortedStudents.find((x) => x.id === id) ?? null
   }, [d.sortedStudents, d.studentStats.avgId])
 
-  const fmtStudent = useCallback(
-    (row) => {
-      // DTO'da ExternalStudentName ve ExternalStudentNumber direkt geliyor
-      const name = row?.externalStudentName ?? ''
-      const num = row?.externalStudentNumber ?? ''
-      if (name && num) return `${name} (${num})`
-      if (name) return name
-      if (num) return num
-      // Fallback: enrollment listesinden bak
-      const sid = row?.externalStudentId
-      return d.studentByExternalStudentId.get(String(sid ?? '')) ?? d.shortGuid(sid)
-    },
-    [d],
-  )
-
   const columns = useMemo(
     () => [
-      columnHelper.display({
-        id: 'student',
+      columnHelper.accessor('enrollmentId', {
         header: 'Öğrenci',
-        cell: ({ row }) => fmtStudent(row.original),
+        cell: (info) =>
+          d.studentByEnrollmentId.get(String(info.getValue() ?? '')) ?? d.shortGuid(info.getValue()),
       }),
-      columnHelper.accessor('midtermScore', { header: 'Vize', cell: (info) => info.getValue() ?? '—' }),
-      columnHelper.accessor('finalScore', { header: 'Final', cell: (info) => info.getValue() ?? '—' }),
-      columnHelper.accessor('makeupScore', { header: 'Bütünleme', cell: (info) => info.getValue() ?? '—' }),
+      columnHelper.accessor('midtermScore', { header: 'Vize' }),
+      columnHelper.accessor('finalScore', { header: 'Final' }),
+      columnHelper.accessor('makeupScore', { header: 'Bütleme' }),
       columnHelper.accessor('usedExamType', {
         header: 'Kullanılan sınav',
         cell: (info) => mudekUsedExamTypeTr(info.getValue()),
       }),
-      columnHelper.accessor('successGrade', { header: 'Başarı', cell: (info) => info.getValue() ?? '—' }),
-      columnHelper.accessor('letterGrade', { header: 'Harf notu', cell: (info) => info.getValue() ?? '—' }),
+      columnHelper.accessor('successGrade', { header: 'Başarı (örn.)' }),
+      columnHelper.accessor('letterGrade', { header: 'Harf notu' }),
       columnHelper.accessor('isPassed', { header: 'Geçti mi?', cell: (info) => (info.getValue() ? 'Evet' : 'Hayır') }),
       columnHelper.accessor('includedInStatistics', {
         header: 'İstatistikte mi?',
@@ -77,7 +62,7 @@ export function MudekStudentResultsPage() {
         cell: (info) => d.formatDate(info.getValue()),
       }),
     ],
-    [d, fmtStudent],
+    [d],
   )
 
   const fmtPct = (v) => {
@@ -114,17 +99,23 @@ export function MudekStudentResultsPage() {
         <div className={styles.cards}>
           <div className={`${styles.card} ${styles.cardBest}`}>
             <div className={styles.cardLabel}>En başarılı</div>
-            <div className={styles.cardValue}>{best ? fmtStudent(best) : '—'}</div>
+            <div className={styles.cardValue}>
+              {best ? d.studentByEnrollmentId.get(String(best.enrollmentId)) ?? d.shortGuid(best.enrollmentId) : '—'}
+            </div>
             <div className={styles.cardHint}>{best ? `Başarı: ${best.successGrade ?? '—'} · ${best.letterGrade ?? '—'}` : ''}</div>
           </div>
           <div className={`${styles.card} ${styles.cardAvg}`}>
             <div className={styles.cardLabel}>Ortalama öğrenci</div>
-            <div className={styles.cardValue}>{avg ? fmtStudent(avg) : '—'}</div>
+            <div className={styles.cardValue}>
+              {avg ? d.studentByEnrollmentId.get(String(avg.enrollmentId)) ?? d.shortGuid(avg.enrollmentId) : '—'}
+            </div>
             <div className={styles.cardHint}>{avg ? `Başarı: ${avg.successGrade ?? '—'} · ${avg.letterGrade ?? '—'}` : ''}</div>
           </div>
           <div className={`${styles.card} ${styles.cardWorst}`}>
             <div className={styles.cardLabel}>En başarısız</div>
-            <div className={styles.cardValue}>{worst ? fmtStudent(worst) : '—'}</div>
+            <div className={styles.cardValue}>
+              {worst ? d.studentByEnrollmentId.get(String(worst.enrollmentId)) ?? d.shortGuid(worst.enrollmentId) : '—'}
+            </div>
             <div className={styles.cardHint}>
               {worst ? `Başarı: ${worst.successGrade ?? '—'} · ${worst.letterGrade ?? '—'}` : ''}
             </div>

@@ -116,26 +116,6 @@ export function deleteQuestion(token, questionId) {
 }
 
 // ═════════════════════════════════════════════
-// Course CLOs (merged: API + DB)
-// ═════════════════════════════════════════════
-
-/**
- * Üniversite API'si boşsa DB'deki yerel CLO'ları döner.
- * Response: { source: "api"|"db", clos: [{ id, cloId, code, description, source, cloKey }] }
- */
-export function fetchCourseClos(token, externalCourseId) {
-  return getJson(`${TEACHER}/courses/${externalCourseId}/clos`, { token })
-}
-
-/**
- * CLO kaynak kilidini sıfırlar (CloDataSource = null).
- * Bir sonraki hesaplamada kaynak otomatik yeniden belirlenir.
- */
-export function resetCloLock(token, evaluationId) {
-  return deleteJsonWithAuth(`${TEACHER}/evaluations/${evaluationId}/clo-lock`, token)
-}
-
-// ═════════════════════════════════════════════
 // Question CLO mappings
 // ═════════════════════════════════════════════
 

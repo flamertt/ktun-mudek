@@ -20,20 +20,14 @@ export function MudekProgramOutcomeResultsPage() {
     const list = d.mudekResults?.programOutcomeResults ?? d.mudekResults?.ProgramOutcomeResults ?? []
     if (!Array.isArray(list)) return []
     return list.map((x) => {
-      // Backend ProgramOutcomeEvaluationResultDto: ExternalProgramOutcomeId, ProgramOutcomeCode, ProgramOutcomeCaption
-      const externalProgramOutcomeId = x.externalProgramOutcomeId ?? x.ExternalProgramOutcomeId
-      const code = x.programOutcomeCode ?? x.ProgramOutcomeCode ?? ''
-      const caption = String(x.programOutcomeCaption ?? x.ProgramOutcomeCaption ?? '').trim()
-      const fromLookup = externalProgramOutcomeId
-        ? d.programOutcomeById.get(String(externalProgramOutcomeId))
-        : undefined
+      const programOutcomeId = x.programOutcomeId ?? x.ProgramOutcomeId
+      const raw = String(x.programOutcomeCaption ?? x.ProgramOutcomeCaption ?? '').trim()
+      const fromLookup = programOutcomeId ? d.programOutcomeById.get(String(programOutcomeId)) : undefined
       const programOutcomeCaption =
-        (code && caption ? `${code} — ${caption}` : caption || code) ||
-        fromLookup ||
-        (externalProgramOutcomeId ? `PÇ-${externalProgramOutcomeId}` : '—')
+        raw || fromLookup || (programOutcomeId ? `PÇ (${d.shortGuid(programOutcomeId)})` : '—')
       return {
         id: x.id ?? x.Id,
-        externalProgramOutcomeId,
+        programOutcomeId,
         programOutcomeCaption,
         achievementScore: x.achievementScore ?? x.AchievementScore,
         updatedAt: x.updatedAt ?? x.UpdatedAt,
