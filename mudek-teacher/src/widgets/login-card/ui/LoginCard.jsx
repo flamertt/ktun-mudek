@@ -2,9 +2,11 @@ import styles from './LoginCard.module.css'
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 
-import { loginAsTeacher } from '../../../shared/api/authApi'
+import { getDevToken, loginAsTeacher } from '../../../shared/api/authApi'
 import { appConfig } from '../../../shared/config/appConfig'
 import { authTexts } from '../../../shared/lib/texts/auth.js'
+
+const IS_DEV = import.meta.env.DEV
 
 export function LoginCard() {
   const navigate = useNavigate()
@@ -13,6 +15,7 @@ export function LoginCard() {
   const [rememberMe, setRememberMe] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [errorMessage, setErrorMessage] = useState('')
+  const [isDevLoading, setIsDevLoading] = useState(false)
 
   const handleSubmit = async (event) => {
     event.preventDefault()
@@ -32,7 +35,8 @@ export function LoginCard() {
         password,
       })
 
-      const token = response?.token ?? response?.Token
+      // Backend AuthLoginResponseDto: AccessToken (not 'token')
+      const token = response?.accessToken ?? response?.AccessToken ?? response?.token ?? response?.Token
       const user = response?.user ?? response?.User
       if (!token || user == null) {
         throw new Error(
@@ -50,12 +54,31 @@ export function LoginCard() {
     }
   }
 
+  const handleDevLogin = async () => {
+    setIsDevLoading(true)
+    setErrorMessage('')
+    try {
+      const response = await getDevToken()
+      // Backend AuthLoginResponseDto: AccessToken (not 'token')
+      const token = response?.accessToken ?? response?.AccessToken ?? response?.token ?? response?.Token
+      const user = response?.user ?? response?.User
+      if (!token || user == null) throw new Error('Dev token alınamadı.')
+      localStorage.setItem(appConfig.storage.tokenKey, token)
+      localStorage.setItem(appConfig.storage.userKey, JSON.stringify(user))
+      navigate(appConfig.routes.home)
+    } catch (error) {
+      setErrorMessage(error.message)
+    } finally {
+      setIsDevLoading(false)
+    }
+  }
+
   return (
     <section className={styles.root} aria-label={authTexts.ariaLabel}>
       <div className={styles.panel}>
         <div className={styles.header}>
           <div className={styles.logoWrap}>
-            <img className={styles.logo} src="/login_logo.png" alt={authTexts.logoAlt} />
+            <img className={styles.logo} src={`${import.meta.env.BASE_URL}login_logo.png`} alt={authTexts.logoAlt} />
           </div>
           <h1 className={styles.title}>{authTexts.title}</h1>
           <p className={styles.subtitle}>{authTexts.subtitle}</p>
@@ -125,6 +148,28 @@ export function LoginCard() {
           </button>
 
           {errorMessage ? <p className={styles.errorText}>{errorMessage}</p> : null}
+
+          {IS_DEV ? (
+            <div style={{ marginTop: '0.75rem', textAlign: 'center' }}>
+              <button
+                type="button"
+                onClick={() => void handleDevLogin()}
+                disabled={isDevLoading || isSubmitting}
+                style={{
+                  background: 'none',
+                  border: '1px dashed #aaa',
+                  borderRadius: '6px',
+                  padding: '0.3rem 0.9rem',
+                  fontSize: '0.78rem',
+                  color: '#888',
+                  cursor: 'pointer',
+                  letterSpacing: '0.01em',
+                }}
+              >
+                {isDevLoading ? 'Yükleniyor…' : '⚙ Dev girişi (Prof. Dr. Gündüz)'}
+              </button>
+            </div>
+          ) : null}
         </form>
       </div>
 

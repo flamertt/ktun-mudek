@@ -24,6 +24,25 @@ namespace BitirmeApi.DataAccess.Migrations
                 });
 
             migrationBuilder.CreateTable(
+                name: "CourseClos",
+                columns: table => new
+                {
+                    Id = table.Column<int>(type: "int", nullable: false)
+                        .Annotation("SqlServer:Identity", "1, 1"),
+                    ExternalCourseId = table.Column<int>(type: "int", nullable: false),
+                    ExternalProgramId = table.Column<int>(type: "int", nullable: false),
+                    Code = table.Column<string>(type: "nvarchar(64)", maxLength: 64, nullable: true),
+                    Description = table.Column<string>(type: "nvarchar(2000)", maxLength: 2000, nullable: false),
+                    OrderIndex = table.Column<int>(type: "int", nullable: false),
+                    IsActive = table.Column<bool>(type: "bit", nullable: false, defaultValue: true),
+                    CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_CourseClos", x => x.Id);
+                });
+
+            migrationBuilder.CreateTable(
                 name: "CourseEvaluations",
                 columns: table => new
                 {
@@ -34,11 +53,13 @@ namespace BitirmeApi.DataAccess.Migrations
                     ExternalTeacherId = table.Column<int>(type: "int", nullable: false),
                     CourseCode = table.Column<string>(type: "nvarchar(64)", maxLength: 64, nullable: true),
                     CourseName = table.Column<string>(type: "nvarchar(256)", maxLength: 256, nullable: true),
+                    ExternalAcademicTermId = table.Column<int>(type: "int", nullable: true),
                     AcademicTermName = table.Column<string>(type: "nvarchar(128)", maxLength: 128, nullable: true),
                     CreatedDate = table.Column<DateTime>(type: "datetime2", nullable: false),
                     UpdatedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
                     LastCalculatedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
                     IsCalculationDirty = table.Column<bool>(type: "bit", nullable: false),
+                    CloDataSource = table.Column<string>(type: "nvarchar(8)", maxLength: 8, nullable: true),
                     StudentFeedbackEvaluation = table.Column<string>(type: "nvarchar(max)", nullable: true),
                     ProgramOutcomeEvaluation = table.Column<string>(type: "nvarchar(max)", nullable: true),
                     GeneralEvaluation = table.Column<string>(type: "nvarchar(max)", nullable: true),
@@ -47,6 +68,7 @@ namespace BitirmeApi.DataAccess.Migrations
                 constraints: table =>
                 {
                     table.PrimaryKey("PK_CourseEvaluations", x => x.Id);
+                    table.CheckConstraint("CK_CourseEvaluation_CloDataSource", "[CloDataSource] IS NULL OR [CloDataSource] IN ('api','db')");
                 });
 
             migrationBuilder.CreateTable(
@@ -128,6 +150,30 @@ namespace BitirmeApi.DataAccess.Migrations
                 });
 
             migrationBuilder.CreateTable(
+                name: "CourseCloPloMaps",
+                columns: table => new
+                {
+                    Id = table.Column<int>(type: "int", nullable: false)
+                        .Annotation("SqlServer:Identity", "1, 1"),
+                    CourseCloId = table.Column<int>(type: "int", nullable: false),
+                    ExternalPloId = table.Column<int>(type: "int", nullable: false),
+                    PloCode = table.Column<string>(type: "nvarchar(64)", maxLength: 64, nullable: true),
+                    Weight = table.Column<double>(type: "float(10)", precision: 10, scale: 6, nullable: false),
+                    CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_CourseCloPloMaps", x => x.Id);
+                    table.CheckConstraint("CK_CourseCloPloMap_Weight", "[Weight] >= 0 AND [Weight] <= 1");
+                    table.ForeignKey(
+                        name: "FK_CourseCloPloMaps_CourseClos_CourseCloId",
+                        column: x => x.CourseCloId,
+                        principalTable: "CourseClos",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
+                });
+
+            migrationBuilder.CreateTable(
                 name: "Exams",
                 columns: table => new
                 {
@@ -171,6 +217,39 @@ namespace BitirmeApi.DataAccess.Migrations
                 });
 
             migrationBuilder.CreateTable(
+                name: "SemesterReports",
+                columns: table => new
+                {
+                    Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    CourseEvaluationId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    ExternalCourseOfferingId = table.Column<int>(type: "int", nullable: false),
+                    ExternalTeacherId = table.Column<int>(type: "int", nullable: false),
+                    CourseCode = table.Column<string>(type: "nvarchar(64)", maxLength: 64, nullable: true),
+                    CourseName = table.Column<string>(type: "nvarchar(256)", maxLength: 256, nullable: true),
+                    AcademicTermName = table.Column<string>(type: "nvarchar(128)", maxLength: 128, nullable: true),
+                    TeacherName = table.Column<string>(type: "nvarchar(256)", maxLength: 256, nullable: true),
+                    TeacherTitle = table.Column<string>(type: "nvarchar(128)", maxLength: 128, nullable: true),
+                    Status = table.Column<string>(type: "nvarchar(16)", maxLength: 16, nullable: false),
+                    SectionANotes = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    SectionIGeneralEvaluation = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    SectionJChangesFromPrevious = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    SignatureName = table.Column<string>(type: "nvarchar(256)", maxLength: 256, nullable: true),
+                    SignatureDate = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    UpdatedAt = table.Column<DateTime>(type: "datetime2", nullable: true)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_SemesterReports", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_SemesterReports_CourseEvaluations_CourseEvaluationId",
+                        column: x => x.CourseEvaluationId,
+                        principalTable: "CourseEvaluations",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
+                });
+
+            migrationBuilder.CreateTable(
                 name: "Questions",
                 columns: table => new
                 {
@@ -185,12 +264,14 @@ namespace BitirmeApi.DataAccess.Migrations
                     Options = table.Column<string>(type: "nvarchar(2000)", maxLength: 2000, nullable: true),
                     McqOptionsCsv = table.Column<string>(type: "nvarchar(2000)", maxLength: 2000, nullable: true),
                     ExternalCloId = table.Column<int>(type: "int", nullable: true),
+                    CloSource = table.Column<string>(type: "nvarchar(8)", maxLength: 8, nullable: true),
                     CloCode = table.Column<string>(type: "nvarchar(64)", maxLength: 64, nullable: true),
                     CloDescription = table.Column<string>(type: "nvarchar(2000)", maxLength: 2000, nullable: true)
                 },
                 constraints: table =>
                 {
                     table.PrimaryKey("PK_Questions", x => x.Id);
+                    table.CheckConstraint("CK_Question_CloSource", "[CloSource] IS NULL OR [CloSource] IN ('api','db')");
                     table.ForeignKey(
                         name: "FK_Questions_Surveys_SurveyId",
                         column: x => x.SurveyId,
@@ -327,6 +408,105 @@ namespace BitirmeApi.DataAccess.Migrations
                 });
 
             migrationBuilder.CreateTable(
+                name: "SemesterReportCloNotes",
+                columns: table => new
+                {
+                    Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    SemesterReportId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    ExternalCloId = table.Column<int>(type: "int", nullable: false),
+                    CloCode = table.Column<string>(type: "nvarchar(64)", maxLength: 64, nullable: true),
+                    CloDescription = table.Column<string>(type: "nvarchar(2000)", maxLength: 2000, nullable: true),
+                    TeacherNote = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    ImprovementSuggestion = table.Column<string>(type: "nvarchar(max)", nullable: true)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_SemesterReportCloNotes", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_SemesterReportCloNotes_SemesterReports_SemesterReportId",
+                        column: x => x.SemesterReportId,
+                        principalTable: "SemesterReports",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "SemesterReportFiles",
+                columns: table => new
+                {
+                    Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    SemesterReportId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    SectionCode = table.Column<string>(type: "nvarchar(4)", maxLength: 4, nullable: false),
+                    FileCategory = table.Column<string>(type: "nvarchar(64)", maxLength: 64, nullable: false),
+                    ExamId = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
+                    OriginalFileName = table.Column<string>(type: "nvarchar(512)", maxLength: 512, nullable: false),
+                    FilePath = table.Column<string>(type: "nvarchar(1024)", maxLength: 1024, nullable: false),
+                    ContentType = table.Column<string>(type: "nvarchar(128)", maxLength: 128, nullable: true),
+                    FileSize = table.Column<long>(type: "bigint", nullable: false),
+                    Notes = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
+                    UploadedAt = table.Column<DateTime>(type: "datetime2", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_SemesterReportFiles", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_SemesterReportFiles_SemesterReports_SemesterReportId",
+                        column: x => x.SemesterReportId,
+                        principalTable: "SemesterReports",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "SemesterReportPloNotes",
+                columns: table => new
+                {
+                    Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    SemesterReportId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    ExternalPloId = table.Column<int>(type: "int", nullable: false),
+                    PloCode = table.Column<string>(type: "nvarchar(64)", maxLength: 64, nullable: true),
+                    PloDescription = table.Column<string>(type: "nvarchar(2000)", maxLength: 2000, nullable: true),
+                    TeacherNote = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    ImprovementSuggestion = table.Column<string>(type: "nvarchar(max)", nullable: true)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_SemesterReportPloNotes", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_SemesterReportPloNotes_SemesterReports_SemesterReportId",
+                        column: x => x.SemesterReportId,
+                        principalTable: "SemesterReports",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "SemesterReportWeeklyResources",
+                columns: table => new
+                {
+                    Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    SemesterReportId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    WeekNumber = table.Column<int>(type: "int", nullable: false),
+                    Topic = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
+                    ResourceType = table.Column<string>(type: "nvarchar(128)", maxLength: 128, nullable: true),
+                    ResourceInfo = table.Column<string>(type: "nvarchar(512)", maxLength: 512, nullable: true),
+                    ChapterPage = table.Column<string>(type: "nvarchar(256)", maxLength: 256, nullable: true),
+                    Description = table.Column<string>(type: "nvarchar(512)", maxLength: 512, nullable: true),
+                    ContentSummary = table.Column<string>(type: "nvarchar(max)", nullable: true)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_SemesterReportWeeklyResources", x => x.Id);
+                    table.CheckConstraint("CK_SemesterReportWeeklyResource_WeekNumber", "[WeekNumber] >= 1 AND [WeekNumber] <= 16");
+                    table.ForeignKey(
+                        name: "FK_SemesterReportWeeklyResources_SemesterReports_SemesterReportId",
+                        column: x => x.SemesterReportId,
+                        principalTable: "SemesterReports",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
+                });
+
+            migrationBuilder.CreateTable(
                 name: "Answers",
                 columns: table => new
                 {
@@ -358,6 +538,7 @@ namespace BitirmeApi.DataAccess.Migrations
                     Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
                     AssessmentComponentId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
                     ExternalCloId = table.Column<int>(type: "int", nullable: false),
+                    CloSource = table.Column<string>(type: "nvarchar(8)", maxLength: 8, nullable: true),
                     CloCode = table.Column<string>(type: "nvarchar(64)", maxLength: 64, nullable: true),
                     CloDescription = table.Column<string>(type: "nvarchar(2000)", maxLength: 2000, nullable: true),
                     Weight = table.Column<decimal>(type: "decimal(5,2)", precision: 5, scale: 2, nullable: false),
@@ -366,6 +547,7 @@ namespace BitirmeApi.DataAccess.Migrations
                 constraints: table =>
                 {
                     table.PrimaryKey("PK_AssessmentComponentOutcomeMappings", x => x.Id);
+                    table.CheckConstraint("CK_AssessmentComponentOutcomeMapping_CloSource", "[CloSource] IS NULL OR [CloSource] IN ('api','db')");
                     table.CheckConstraint("CK_AssessmentComponentOutcomeMapping_Weight", "[Weight] >= 0 AND [Weight] <= 1");
                     table.ForeignKey(
                         name: "FK_AssessmentComponentOutcomeMappings_AssessmentComponents_AssessmentComponentId",
@@ -447,6 +629,7 @@ namespace BitirmeApi.DataAccess.Migrations
                     Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
                     ExamQuestionId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
                     ExternalCloId = table.Column<int>(type: "int", nullable: false),
+                    CloSource = table.Column<string>(type: "nvarchar(8)", maxLength: 8, nullable: true),
                     CloCode = table.Column<string>(type: "nvarchar(64)", maxLength: 64, nullable: true),
                     CloDescription = table.Column<string>(type: "nvarchar(2000)", maxLength: 2000, nullable: true),
                     Weight = table.Column<decimal>(type: "decimal(5,2)", precision: 5, scale: 2, nullable: false),
@@ -455,6 +638,7 @@ namespace BitirmeApi.DataAccess.Migrations
                 constraints: table =>
                 {
                     table.PrimaryKey("PK_ExamQuestionOutcomeMappings", x => x.Id);
+                    table.CheckConstraint("CK_ExamQuestionOutcomeMapping_CloSource", "[CloSource] IS NULL OR [CloSource] IN ('api','db')");
                     table.CheckConstraint("CK_ExamQuestionOutcomeMapping_Weight", "[Weight] >= 0 AND [Weight] <= 1");
                     table.ForeignKey(
                         name: "FK_ExamQuestionOutcomeMappings_ExamQuestions_ExamQuestionId",
@@ -496,10 +680,11 @@ namespace BitirmeApi.DataAccess.Migrations
                 column: "SubmissionId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_AssessmentComponentOutcomeMappings_AssessmentComponentId_ExternalCloId",
+                name: "IX_AssessmentComponentOutcomeMappings_AssessmentComponentId_ExternalCloId_CloSource",
                 table: "AssessmentComponentOutcomeMappings",
-                columns: new[] { "AssessmentComponentId", "ExternalCloId" },
-                unique: true);
+                columns: new[] { "AssessmentComponentId", "ExternalCloId", "CloSource" },
+                unique: true,
+                filter: "[CloSource] IS NOT NULL");
 
             migrationBuilder.CreateIndex(
                 name: "IX_AssessmentComponents_ExamId_OrderIndex",
@@ -517,6 +702,22 @@ namespace BitirmeApi.DataAccess.Migrations
                 table: "CloEvaluationResults",
                 columns: new[] { "ExternalCourseOfferingId", "ExternalCloId", "ResultType" },
                 unique: true);
+
+            migrationBuilder.CreateIndex(
+                name: "IX_CourseCloPloMaps_CourseCloId_ExternalPloId",
+                table: "CourseCloPloMaps",
+                columns: new[] { "CourseCloId", "ExternalPloId" },
+                unique: true);
+
+            migrationBuilder.CreateIndex(
+                name: "IX_CourseClos_ExternalCourseId",
+                table: "CourseClos",
+                column: "ExternalCourseId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_CourseClos_ExternalCourseId_ExternalProgramId",
+                table: "CourseClos",
+                columns: new[] { "ExternalCourseId", "ExternalProgramId" });
 
             migrationBuilder.CreateIndex(
                 name: "IX_CourseEvaluations_ExternalCourseOfferingId",
@@ -570,10 +771,11 @@ namespace BitirmeApi.DataAccess.Migrations
                 filter: "[ExamQuestionId] IS NOT NULL");
 
             migrationBuilder.CreateIndex(
-                name: "IX_ExamQuestionOutcomeMappings_ExamQuestionId_ExternalCloId",
+                name: "IX_ExamQuestionOutcomeMappings_ExamQuestionId_ExternalCloId_CloSource",
                 table: "ExamQuestionOutcomeMappings",
-                columns: new[] { "ExamQuestionId", "ExternalCloId" },
-                unique: true);
+                columns: new[] { "ExamQuestionId", "ExternalCloId", "CloSource" },
+                unique: true,
+                filter: "[CloSource] IS NOT NULL");
 
             migrationBuilder.CreateIndex(
                 name: "IX_ExamQuestions_ExamId_QuestionNumber",
@@ -608,6 +810,50 @@ namespace BitirmeApi.DataAccess.Migrations
                 name: "IX_Questions_SurveyId",
                 table: "Questions",
                 column: "SurveyId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_SemesterReportCloNotes_SemesterReportId_ExternalCloId",
+                table: "SemesterReportCloNotes",
+                columns: new[] { "SemesterReportId", "ExternalCloId" },
+                unique: true);
+
+            migrationBuilder.CreateIndex(
+                name: "IX_SemesterReportFiles_SemesterReportId",
+                table: "SemesterReportFiles",
+                column: "SemesterReportId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_SemesterReportFiles_SemesterReportId_SectionCode",
+                table: "SemesterReportFiles",
+                columns: new[] { "SemesterReportId", "SectionCode" });
+
+            migrationBuilder.CreateIndex(
+                name: "IX_SemesterReportPloNotes_SemesterReportId_ExternalPloId",
+                table: "SemesterReportPloNotes",
+                columns: new[] { "SemesterReportId", "ExternalPloId" },
+                unique: true);
+
+            migrationBuilder.CreateIndex(
+                name: "IX_SemesterReports_CourseEvaluationId",
+                table: "SemesterReports",
+                column: "CourseEvaluationId",
+                unique: true);
+
+            migrationBuilder.CreateIndex(
+                name: "IX_SemesterReports_ExternalCourseOfferingId",
+                table: "SemesterReports",
+                column: "ExternalCourseOfferingId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_SemesterReports_ExternalTeacherId",
+                table: "SemesterReports",
+                column: "ExternalTeacherId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_SemesterReportWeeklyResources_SemesterReportId_WeekNumber",
+                table: "SemesterReportWeeklyResources",
+                columns: new[] { "SemesterReportId", "WeekNumber" },
+                unique: true);
 
             migrationBuilder.CreateIndex(
                 name: "IX_StudentAnswers_ExamQuestionId_ExternalStudentId",
@@ -660,6 +906,9 @@ namespace BitirmeApi.DataAccess.Migrations
                 name: "CloEvaluationResults");
 
             migrationBuilder.DropTable(
+                name: "CourseCloPloMaps");
+
+            migrationBuilder.DropTable(
                 name: "ExamEvaluationResults");
 
             migrationBuilder.DropTable(
@@ -678,6 +927,18 @@ namespace BitirmeApi.DataAccess.Migrations
                 name: "ProgramOutcomeEvaluationResults");
 
             migrationBuilder.DropTable(
+                name: "SemesterReportCloNotes");
+
+            migrationBuilder.DropTable(
+                name: "SemesterReportFiles");
+
+            migrationBuilder.DropTable(
+                name: "SemesterReportPloNotes");
+
+            migrationBuilder.DropTable(
+                name: "SemesterReportWeeklyResources");
+
+            migrationBuilder.DropTable(
                 name: "StudentAnswers");
 
             migrationBuilder.DropTable(
@@ -691,6 +952,12 @@ namespace BitirmeApi.DataAccess.Migrations
 
             migrationBuilder.DropTable(
                 name: "Submissions");
+
+            migrationBuilder.DropTable(
+                name: "CourseClos");
+
+            migrationBuilder.DropTable(
+                name: "SemesterReports");
 
             migrationBuilder.DropTable(
                 name: "ExamQuestions");

@@ -1,4 +1,5 @@
 using BitirmeApi.Business.Abstract;
+using BitirmeApi.Business.Constants;
 using BitirmeApi.Business.DTO;
 using BitirmeApi.Business.Integration.Abstract;
 using Microsoft.AspNetCore.Authorization;
@@ -8,24 +9,30 @@ namespace BitirmeApi.Presentation.Controllers
 {
     [Route("api/[controller]")]
     [ApiController]
-    [Authorize]
+    [Authorize(Roles = "Personel")]
     public class AdminController : ControllerBase
     {
         private readonly ICourseEvaluationService _evaluationService;
         private readonly IUniversityApiService _universityApi;
         private readonly IAcademicTermService _academicTermService;
         private readonly ILetterGradeRuleService _letterGradeRuleService;
+        private readonly ICourseCloService _courseCloService;
+        private readonly ICourseCloPloMapService _courseCloPloMapService;
 
         public AdminController(
             ICourseEvaluationService evaluationService,
             IUniversityApiService universityApi,
             IAcademicTermService academicTermService,
-            ILetterGradeRuleService letterGradeRuleService)
+            ILetterGradeRuleService letterGradeRuleService,
+            ICourseCloService courseCloService,
+            ICourseCloPloMapService courseCloPloMapService)
         {
             _evaluationService = evaluationService;
             _universityApi = universityApi;
             _academicTermService = academicTermService;
             _letterGradeRuleService = letterGradeRuleService;
+            _courseCloService = courseCloService;
+            _courseCloPloMapService = courseCloPloMapService;
         }
 
         /// <summary>Authorization header'daki Bearer token'ı döndürür (üniversite API token'ı).</summary>
@@ -192,6 +199,143 @@ namespace BitirmeApi.Presentation.Controllers
                 await _letterGradeRuleService.DeleteAsync(id);
                 return NoContent();
             }
+            catch (KeyNotFoundException ex) { return NotFound(new { message = ex.Message }); }
+        }
+
+        // ════════════════════════════════════════════════════════════════════════
+        // ÖĞRETİM ELEMANI DERS LİSTESİ (admin tarafı — CLO ekleme için)
+        // ════════════════════════════════════════════════════════════════════════
+
+        /// <summary>
+        /// Belirli bir dönemde bir öğretim elemanının derslerini listeler.
+        /// Admin'in CLO ekleyeceği courseId'yi bulmak için kullanılır.
+        /// </summary>
+        [HttpGet("university/teacher-courses")]
+        public async Task<IActionResult> GetTeacherCourses([FromQuery] string email, [FromQuery] int academicTermId)
+        {
+            if (string.IsNullOrWhiteSpace(email) || academicTermId <= 0)
+                return BadRequest(new { message = "email ve academicTermId zorunludur." });
+            try
+            {
+                var offerings = await _universityApi.GetTeacherOfferingsByEmailAsync(email, academicTermId, GetUniversityToken());
+                return Ok(offerings);
+            }
+            catch (Exception ex) { return BadRequest(new { message = ex.Message }); }
+        }
+
+        // ════════════════════════════════════════════════════════════════════════
+        // YEREL CLO YÖNETİMİ
+        // ════════════════════════════════════════════════════════════════════════
+
+        /// <summary>Bir derse ait yerel CLO'ları listeler (üniversite API'si boş döndüğünde devreye girer).</summary>
+        [HttpGet("courses/{externalCourseId:int}/local-clos")]
+        public async Task<IActionResult> GetLocalClos(int externalCourseId)
+            => Ok(await _courseCloService.GetByExternalCourseIdAsync(externalCourseId));
+
+        /// <summary>Hem üniversite API'sinden hem DB'den CLO birleşimini döner.</summary>
+        [HttpGet("courses/{externalCourseId:int}/clos/merged")]
+        public async Task<IActionResult> GetMergedClos(int externalCourseId)
+        {
+            try
+            {
+                var apiClos = await _universityApi.GetClosByCourseidAsync(externalCourseId, GetUniversityToken());
+                var dbClos = await _courseCloService.GetByExternalCourseIdAsync(externalCourseId);
+                return Ok(new
+                {
+                    fromApi = apiClos.Select(c => new
+                    {
+                        cloId = c.CloId,
+                        description = c.Description,
+                        source = CloSourceType.Api,
+                        cloKey = $"{CloSourceType.Api}:{c.CloId}"
+                    }),
+                    fromDb = dbClos,   // CourseCloDto zaten SourceType ve CloKey içeriyor
+                    apiEmpty = apiClos.Count == 0
+                });
+            }
+            catch (Exception ex) { return BadRequest(new { message = ex.Message }); }
+        }
+
+        [HttpGet("local-clos/{id:int}")]
+        public async Task<IActionResult> GetLocalClo(int id)
+        {
+            var item = await _courseCloService.GetByIdAsync(id);
+            return item == null ? NotFound() : Ok(item);
+        }
+
+        [HttpPost("local-clos")]
+        public async Task<IActionResult> CreateLocalClo([FromBody] CreateCourseCloDto dto)
+        {
+            if (!ModelState.IsValid) return BadRequest(ModelState);
+            try
+            {
+                var created = await _courseCloService.CreateAsync(dto);
+                return CreatedAtAction(nameof(GetLocalClo), new { id = created.Id }, created);
+            }
+            catch (Exception ex) { return BadRequest(new { message = ex.Message }); }
+        }
+
+        [HttpPut("local-clos/{id:int}")]
+        public async Task<IActionResult> UpdateLocalClo(int id, [FromBody] UpdateCourseCloDto dto)
+        {
+            if (dto.Id != id) return BadRequest(new { message = "URL ile gövde Id uyuşmuyor." });
+            if (!ModelState.IsValid) return BadRequest(ModelState);
+            try { return Ok(await _courseCloService.UpdateAsync(dto)); }
+            catch (KeyNotFoundException ex) { return NotFound(new { message = ex.Message }); }
+        }
+
+        [HttpDelete("local-clos/{id:int}")]
+        public async Task<IActionResult> DeleteLocalClo(int id)
+        {
+            try { await _courseCloService.DeleteAsync(id); return NoContent(); }
+            catch (KeyNotFoundException ex) { return NotFound(new { message = ex.Message }); }
+        }
+
+        // ════════════════════════════════════════════════════════════════════════
+        // YEREL CLO–PO EŞLEMESİ
+        // ════════════════════════════════════════════════════════════════════════
+
+        [HttpGet("local-clos/{cloId:int}/plo-maps")]
+        public async Task<IActionResult> GetPloMapsByClo(int cloId)
+            => Ok(await _courseCloPloMapService.GetByCloIdAsync(cloId));
+
+        [HttpGet("courses/{externalCourseId:int}/local-plo-maps")]
+        public async Task<IActionResult> GetPloMapsByCourse(int externalCourseId)
+            => Ok(await _courseCloPloMapService.GetByExternalCourseIdAsync(externalCourseId));
+
+        [HttpGet("local-plo-maps/{id:int}")]
+        public async Task<IActionResult> GetPloMap(int id)
+        {
+            var item = await _courseCloPloMapService.GetByIdAsync(id);
+            return item == null ? NotFound() : Ok(item);
+        }
+
+        [HttpPost("local-plo-maps")]
+        public async Task<IActionResult> CreatePloMap([FromBody] CreateCourseCloPloMapDto dto)
+        {
+            if (!ModelState.IsValid) return BadRequest(ModelState);
+            try
+            {
+                var created = await _courseCloPloMapService.CreateAsync(dto);
+                return CreatedAtAction(nameof(GetPloMap), new { id = created.Id }, created);
+            }
+            catch (KeyNotFoundException ex) { return NotFound(new { message = ex.Message }); }
+            catch (InvalidOperationException ex) { return Conflict(new { message = ex.Message }); }
+        }
+
+        [HttpPut("local-plo-maps/{id:int}")]
+        public async Task<IActionResult> UpdatePloMap(int id, [FromBody] UpdateCourseCloPloMapDto dto)
+        {
+            if (dto.Id != id) return BadRequest(new { message = "URL ile gövde Id uyuşmuyor." });
+            if (!ModelState.IsValid) return BadRequest(ModelState);
+            try { return Ok(await _courseCloPloMapService.UpdateAsync(dto)); }
+            catch (KeyNotFoundException ex) { return NotFound(new { message = ex.Message }); }
+        }
+
+        [HttpDelete("local-plo-maps/{id:int}")]
+        public async Task<IActionResult> DeletePloMap(int id)
+        {
+            try { await _courseCloPloMapService.DeleteAsync(id); return NoContent(); }
             catch (KeyNotFoundException ex) { return NotFound(new { message = ex.Message }); }
         }
     }

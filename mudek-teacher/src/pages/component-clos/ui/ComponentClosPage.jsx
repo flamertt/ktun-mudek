@@ -49,7 +49,8 @@ export function ComponentClosPage() {
 
     Promise.all([fetchOfferingClos(token, offeringId), fetchComponentClos(token, componentId)])
       .then(([closData, mappingsData]) => {
-        setClos(Array.isArray(closData) ? closData : [])
+        const cloList = Array.isArray(closData) ? closData : (Array.isArray(closData?.clos) ? closData.clos : [])
+        setClos(cloList)
         setMappings(Array.isArray(mappingsData) ? mappingsData : [])
       })
       .catch((e) => setError(e instanceof Error ? e.message : 'Eşlemeler alınamadı.'))
@@ -94,7 +95,16 @@ export function ComponentClosPage() {
       }
 
       const weight = parseMaybeNumber(form.weight) ?? 0
-      const bodyBase = { courseLearningOutcomeId: cloId, weight }
+      const selectedClo = clos.find((c) => String(c.id) === cloId || String(c.cloId) === cloId)
+      const cloSource = selectedClo?.source ?? 'api'
+      const externalCloId = Number(selectedClo?.cloId ?? cloId)
+      const bodyBase = {
+        externalCloId,
+        cloSource,
+        cloCode: selectedClo?.code ?? null,
+        cloDescription: selectedClo?.description ?? null,
+        weight,
+      }
 
       if (dialogMode === 'create') {
         await addComponentCloMapping(token, componentId, bodyBase)
@@ -224,7 +234,7 @@ export function ComponentClosPage() {
 
           <div className={formStyles.field}>
             <label className={formStyles.label} htmlFor="courseLearningOutcomeId">
-              CLO
+              CLO {clos[0]?.source === 'db' && <span style={{ fontSize: '0.75rem', color: 'var(--color-warning,#c90)' }}>(yerel kayıt)</span>}
             </label>
             <select
               id="courseLearningOutcomeId"
@@ -234,7 +244,7 @@ export function ComponentClosPage() {
               required
             >
               {clos.map((c) => (
-                <option key={c.id} value={c.id}>
+                <option key={c.id ?? c.cloId} value={c.id ?? String(c.cloId)}>
                   {c.code} · {c.description}
                 </option>
               ))}

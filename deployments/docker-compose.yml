@@ -42,6 +42,11 @@ services:
         Server=db,1433;Database=MudekDbAcademic;
         User Id=sa;Password=${DB_SA_PASSWORD};
         TrustServerCertificate=True;
+      Jwt__SecretKey: "${JWT_SECRET_KEY}"
+      KtunBasicAuth__Username: "${KTUN_BASIC_AUTH_USERNAME}"
+      KtunBasicAuth__Password: "${KTUN_BASIC_AUTH_PASSWORD}"
+      KtunServiceAuth__Username: "${KTUN_SERVICE_USERNAME}"
+      KtunServiceAuth__Password: "${KTUN_SERVICE_PASSWORD}"
     networks:
       - backend
       - proxy

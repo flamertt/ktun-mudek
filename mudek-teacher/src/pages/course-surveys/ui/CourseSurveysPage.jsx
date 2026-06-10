@@ -72,7 +72,7 @@ export function CourseSurveysPage() {
     setError('')
     try {
       await createTeacherSurvey(token, {
-        courseOfferingId: offeringId,
+        externalCourseOfferingId: Number(offeringId),
         title: t,
         description: createDesc.trim() || null,
         isActive: createActive,

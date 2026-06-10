@@ -25,20 +25,26 @@ export function MudekItemCloAchievementsPage() {
     if (!Array.isArray(list)) return []
     return list.map((x) => {
       const rawType = x.itemType ?? x.ItemType
+      // Backend ExamAssessmentItemCloAchievementDto: ExternalCloId, CloCode (courseLearningOutcomeId yok)
+      const externalCloId = x.externalCloId ?? x.ExternalCloId
+      const cloCode = x.cloCode ?? x.CloCode ?? ''
+      const cloLabel = cloCode || d.cloById.get(String(externalCloId ?? '')) || d.shortGuid(externalCloId)
       return {
         id: x.id ?? x.Id,
         itemType: rawType,
         itemTypeLabel: mudekItemTypeTr(rawType),
         examId: x.examId ?? x.ExamId,
         itemNumber: x.itemNumber ?? x.ItemNumber,
-        courseLearningOutcomeId: x.courseLearningOutcomeId ?? x.CourseLearningOutcomeId,
+        externalCloId,
+        cloCode,
+        cloLabel,
         mappingWeight: x.mappingWeight ?? x.MappingWeight,
         achievementRate: x.achievementRate ?? x.AchievementRate,
         weightedAchievement: x.weightedAchievement ?? x.WeightedAchievement,
         includedStudentCount: x.includedStudentCount ?? x.IncludedStudentCount,
       }
     })
-  }, [d.mudekResults])
+  }, [d.cloById, d.mudekResults, d.shortGuid])
 
   const sorted = useMemo(() => {
     return [...rows].sort(
@@ -63,9 +69,9 @@ export function MudekItemCloAchievementsPage() {
         cell: (info) => d.examById.get(String(info.getValue() ?? '')) ?? d.shortGuid(info.getValue()),
       }),
       columnHelper.accessor('itemNumber', { header: 'No / sıra' }),
-      columnHelper.accessor('courseLearningOutcomeId', {
+      columnHelper.accessor('cloLabel', {
         header: 'DÖÇ',
-        cell: (info) => d.cloById.get(String(info.getValue() ?? '')) ?? d.shortGuid(info.getValue()),
+        cell: (info) => info.getValue(),
       }),
       columnHelper.accessor('mappingWeight', {
         header: 'Eşleme ağırlığı',

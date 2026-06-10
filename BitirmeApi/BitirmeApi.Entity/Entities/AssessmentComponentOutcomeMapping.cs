@@ -19,9 +19,13 @@ namespace BitirmeApi.Entity.Entities
         [ForeignKey("AssessmentComponentId")]
         public AssessmentComponent AssessmentComponent { get; set; } = default!;
 
-        /// <summary>Üniversite API CLO ID (int)</summary>
+        /// <summary>CLO ID: CloSource="api" → üniversite API, CloSource="db" → CourseClo.Id.</summary>
         [Required]
         public int ExternalCloId { get; set; }
+
+        /// <summary>CLO kaynağı: "api" | "db". null ise legacy kayıt, "api" kabul edilir.</summary>
+        [MaxLength(8)]
+        public string? CloSource { get; set; }
 
         [MaxLength(64)]
         public string? CloCode { get; set; }
