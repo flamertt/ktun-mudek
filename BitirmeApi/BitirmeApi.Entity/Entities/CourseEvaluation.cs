@@ -42,6 +42,9 @@ namespace BitirmeApi.Entity.Entities
         [MaxLength(256)]
         public string? CourseName { get; set; }
 
+        /// <summary>Üniversite API'sindeki akademik dönem ID'si</summary>
+        public int? ExternalAcademicTermId { get; set; }
+
         /// <summary>Akademik dönem adı (denormalized)</summary>
         [MaxLength(128)]
         public string? AcademicTermName { get; set; }
@@ -51,6 +54,15 @@ namespace BitirmeApi.Entity.Entities
 
         public DateTime? LastCalculatedAt { get; set; }
         public bool IsCalculationDirty { get; set; } = true;
+
+        /// <summary>
+        /// Hesaplamada kullanılan CLO kaynağı: "api" | "db" | null.
+        /// null → henüz hesaplanmadı (otomatik belirlenir).
+        /// "db" → yerel CLO ile kilitli; API doldurulsa bile bu değerlendirme yerel kaynaktan devam eder.
+        /// Kilidi açmak için null'a sıfırla (reset-clo-lock endpoint).
+        /// </summary>
+        [MaxLength(8)]
+        public string? CloDataSource { get; set; }
 
         public string? StudentFeedbackEvaluation { get; set; }
         public string? ProgramOutcomeEvaluation { get; set; }

@@ -27,6 +27,8 @@ import { CourseSurveysPage } from './pages/course-surveys/ui/CourseSurveysPage.j
 import { TeacherSurveyDetailPage } from './pages/survey-detail/ui/TeacherSurveyDetailPage.jsx'
 import { SurveyLandingPage } from './pages/survey-landing/ui/SurveyLandingPage.jsx'
 import { TeacherSurveyResultsPage } from './pages/survey-results/ui/TeacherSurveyResultsPage.jsx'
+import { SemesterReportListPage } from './pages/semester-report-list/ui/SemesterReportListPage.jsx'
+import { SemesterReportDetailPage } from './pages/semester-report-detail/ui/SemesterReportDetailPage.jsx'
 
 const SURVEY_SECTION = appConfig.routes.surveyCreate
 
@@ -64,6 +66,7 @@ export default function App() {
     courses: MyCoursesPage,
     evaluations: EvaluationsLandingPage,
     surveyCreate: SurveyLandingPage,
+    semesterReports: SemesterReportListPage,
   }
 
   return (
@@ -101,6 +104,8 @@ export default function App() {
         <Route path={`${SURVEY_SECTION}/:offeringId/:surveyId/results`} element={<TeacherSurveyResultsPage />} />
         <Route path={`${SURVEY_SECTION}/:offeringId/:surveyId`} element={<TeacherSurveyDetailPage />} />
         <Route path={`${SURVEY_SECTION}/:offeringId`} element={<CourseSurveysPage />} />
+        <Route path={`${appConfig.routes.semesterReports}/:reportId`} element={<SemesterReportDetailPage />} />
+
         <Route path="/evaluations/:offeringId" element={<CourseEvaluationPage />} />
         <Route path="/evaluations/:offeringId/mudek/students" element={<MudekStudentResultsPage />} />
         <Route path="/evaluations/:offeringId/mudek/exams" element={<MudekExamSummariesPage />} />

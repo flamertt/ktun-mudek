@@ -54,7 +54,9 @@ export function QuestionClosPage() {
 
     Promise.all([fetchOfferingClos(token, offeringId), fetchQuestionClos(token, questionId)])
       .then(([closData, mappingsData]) => {
-        setClos(Array.isArray(closData) ? closData : [])
+        // fetchOfferingClos artık { source, clos } objesi dönüyor; geriye uyumlu düz dizi de desteklenir
+        const cloList = Array.isArray(closData) ? closData : (Array.isArray(closData?.clos) ? closData.clos : [])
+        setClos(cloList)
         setMappings(Array.isArray(mappingsData) ? mappingsData : [])
       })
       .catch((e) => setError(e instanceof Error ? e.message : 'CLO eşlemeleri alınamadı.'))
@@ -78,14 +80,22 @@ export function QuestionClosPage() {
 
   const openEdit = useCallback((row) => {
     setDialogMode('edit')
-    setEditingMappingId(row.id)
+    setEditingMappingId(row.id ?? row.Id)
+    // cloKey üzerinden seçili CLO'yu bul; yoksa externalCloId + source ile oluştur
+    const key = row.cloKey ?? row.CloKey
+      ?? `${row.cloSource ?? row.CloSource ?? 'api'}:${row.externalCloId ?? row.ExternalCloId ?? ''}`
+    const match = clos.find((c) => {
+      const src = c?.source ?? c?.sourceType ?? 'api'
+      const id = c?.id ?? c?.cloId ?? ''
+      return `${src}:${id}` === key || String(c?.id) === String(row.externalCloId ?? row.ExternalCloId)
+    })
     setForm({
-      courseLearningOutcomeId: row.courseLearningOutcomeId ?? '',
+      courseLearningOutcomeId: match ? String(match.id ?? match.cloId) : '',
       weight: Number(row.weight ?? 0),
     })
     setFormError('')
     setDialogOpen(true)
-  }, [])
+  }, [clos])
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -103,9 +113,17 @@ export function QuestionClosPage() {
 
       const weight = parseMaybeNumber(form.weight) ?? 0
 
+      // Seçilen CLO'nun kaynağını bul (api|db)
+      const selectedClo = clos.find((c) => String(c.id) === cloId || String(c.cloId) === cloId)
+      const cloSource = selectedClo?.source ?? 'api'
+      const externalCloId = Number(selectedClo?.cloId ?? cloId)
+
       const body = {
         examQuestionId: questionId,
-        courseLearningOutcomeId: cloId,
+        externalCloId,
+        cloSource,
+        cloCode: selectedClo?.code ?? null,
+        cloDescription: selectedClo?.description ?? null,
         weight,
       }
 
@@ -144,8 +162,14 @@ export function QuestionClosPage() {
 
   const columns = useMemo(
     () => [
-      columnHelper.accessor('outcomeCode', { header: 'CLO' }),
-      columnHelper.accessor('outcomeDescription', { header: 'Açıklama' }),
+      columnHelper.accessor((r) => r?.cloCode ?? r?.CloCode ?? '—', { header: 'CLO Kodu' }),
+      columnHelper.accessor((r) => r?.cloDescription ?? r?.CloDescription ?? '—', { header: 'Açıklama' }),
+      columnHelper.accessor((r) => r?.cloSource ?? r?.CloSource ?? 'api', {
+        header: 'Kaynak',
+        cell: (info) => info.getValue() === 'db'
+          ? <span style={{ fontSize: '0.8rem', color: 'var(--color-warning,#c90)' }}>Yerel</span>
+          : <span style={{ fontSize: '0.8rem' }}>API</span>,
+      }),
       columnHelper.accessor('weight', {
         header: 'Ağırlık',
         cell: (info) => String(info.getValue() ?? 0),
@@ -232,7 +256,7 @@ export function QuestionClosPage() {
 
           <div className={formStyles.field}>
             <label className={formStyles.label} htmlFor="courseLearningOutcomeId">
-              CLO
+              CLO {clos[0]?.source === 'db' && <span style={{ fontSize: '0.75rem', color: 'var(--color-warning,#c90)' }}>(yerel kayıt)</span>}
             </label>
             <select
               id="courseLearningOutcomeId"
@@ -242,7 +266,7 @@ export function QuestionClosPage() {
               required
             >
               {clos.map((c) => (
-                <option key={c.id} value={c.id}>
+                <option key={c.id ?? c.cloId} value={c.id ?? String(c.cloId)}>
                   {c.code} · {c.description}
                 </option>
               ))}

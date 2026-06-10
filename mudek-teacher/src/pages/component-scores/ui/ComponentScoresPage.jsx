@@ -91,19 +91,30 @@ export function ComponentScoresPage() {
 
       const enrollmentId = enrollment.id ?? enrollment.Id
       const existing = scoreByEnrollmentId.get(enrollmentId)
+      const scoreId = existing?.id ?? existing?.Id
 
-      const score = parseMaybeNumber(scoreDraftRef.current[enrollmentId])
+      const raw = scoreDraftRef.current[enrollmentId]
+      const score = parseMaybeNumber(raw)
       const notes = String(notesDraftRef.current[enrollmentId] ?? '').trim() || null
 
+      // Boş = sınava girmemiş: kayıt varsa sil, yoksa hiçbir şey yapma
       if (score == null) {
-        setSubmitError('Puan zorunlu.')
+        if (!scoreId) return
+        setSaving(true)
+        try {
+          await deleteScore(token, scoreId)
+          await load()
+        } catch (e) {
+          setSubmitError(e instanceof Error ? e.message : 'Kaydedilemedi.')
+        } finally {
+          setSaving(false)
+        }
         return
       }
 
       setSaving(true)
       try {
-        if (existing?.id ?? existing?.Id) {
-          const scoreId = existing.id ?? existing.Id
+        if (scoreId) {
           await updateScore(token, scoreId, { score, notes })
         } else {
           await addScore(token, componentId, { enrollmentId, score, notes })
@@ -115,7 +126,7 @@ export function ComponentScoresPage() {
         setSaving(false)
       }
     },
-    [componentId, load, scoreByEnrollmentId],
+    [componentId, deleteScore, load, scoreByEnrollmentId],
   )
 
   const handleDeleteOne = useCallback(
@@ -193,6 +204,7 @@ export function ComponentScoresPage() {
               autoComplete="off"
               className={formStyles.input}
               style={{ minWidth: '8rem' }}
+              placeholder="boş = girmedi"
               value={value}
               onChange={(e) =>
                 setScoreDraftByEnrollmentId((prev) => ({

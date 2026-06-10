@@ -9,6 +9,7 @@ namespace BitirmeApi.Business.DTO
         public int ExternalTeacherId { get; set; }
         public string? CourseCode { get; set; }
         public string? CourseName { get; set; }
+        public int? ExternalAcademicTermId { get; set; }
         public string? AcademicTermName { get; set; }
         public DateTime CreatedDate { get; set; }
         public DateTime? UpdatedAt { get; set; }
@@ -25,6 +26,7 @@ namespace BitirmeApi.Business.DTO
         public int ExternalTeacherId { get; set; }
         public string? CourseCode { get; set; }
         public string? CourseName { get; set; }
+        public int? ExternalAcademicTermId { get; set; }
         public string? AcademicTermName { get; set; }
         public DateTime CreatedDate { get; set; }
         public DateTime? UpdatedAt { get; set; }
@@ -46,7 +48,9 @@ namespace BitirmeApi.Business.DTO
         public string? CourseCode { get; set; }
         /// <summary>Görüntüleme için ders adı (denormalized)</summary>
         public string? CourseName { get; set; }
-        /// <summary>Görüntüleme için dönem adı (denormalized)</summary>
+        /// <summary>Üniversite API'sindeki akademik dönem ID'si; sağlanırsa dönem adı otomatik çözülür.</summary>
+        public int? ExternalAcademicTermId { get; set; }
+        /// <summary>Görüntüleme için dönem adı (denormalized); boş bırakılırsa ExternalAcademicTermId'den çözülür.</summary>
         public string? AcademicTermName { get; set; }
 
         public string? StudentFeedbackEvaluation { get; set; }

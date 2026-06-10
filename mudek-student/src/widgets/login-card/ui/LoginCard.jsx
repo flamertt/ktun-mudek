@@ -32,7 +32,8 @@ export function LoginCard() {
         password,
       })
 
-      const token = response?.token ?? response?.Token
+      // Backend AuthLoginResponseDto: AccessToken (not 'token')
+      const token = response?.accessToken ?? response?.AccessToken ?? response?.token ?? response?.Token
       const user = response?.user ?? response?.User
       if (!token || user == null) {
         throw new Error(
@@ -55,7 +56,7 @@ export function LoginCard() {
       <div className={styles.panel}>
         <div className={styles.header}>
           <div className={styles.logoWrap}>
-            <img className={styles.logo} src="/login_logo.png" alt={authTexts.logoAlt} />
+            <img className={styles.logo} src={`${import.meta.env.BASE_URL}login_logo.png`} alt={authTexts.logoAlt} />
           </div>
           <h1 className={styles.title}>{authTexts.title}</h1>
           <p className={styles.subtitle}>{authTexts.subtitle}</p>

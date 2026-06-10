@@ -140,6 +140,10 @@ namespace BitirmeApi.DataAccess.Migrations
                         .HasMaxLength(2000)
                         .HasColumnType("nvarchar(2000)");
 
+                    b.Property<string>("CloSource")
+                        .HasMaxLength(8)
+                        .HasColumnType("nvarchar(8)");
+
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
 
@@ -152,11 +156,14 @@ namespace BitirmeApi.DataAccess.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("AssessmentComponentId", "ExternalCloId")
-                        .IsUnique();
+                    b.HasIndex("AssessmentComponentId", "ExternalCloId", "CloSource")
+                        .IsUnique()
+                        .HasFilter("[CloSource] IS NOT NULL");
 
                     b.ToTable("AssessmentComponentOutcomeMappings", t =>
                         {
+                            t.HasCheckConstraint("CK_AssessmentComponentOutcomeMapping_CloSource", "[CloSource] IS NULL OR [CloSource] IN ('api','db')");
+
                             t.HasCheckConstraint("CK_AssessmentComponentOutcomeMapping_Weight", "[Weight] >= 0 AND [Weight] <= 1");
                         });
                 });
@@ -218,6 +225,85 @@ namespace BitirmeApi.DataAccess.Migrations
                     b.ToTable("CloEvaluationResults");
                 });
 
+            modelBuilder.Entity("BitirmeApi.Entity.Entities.CourseClo", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("Code")
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<int>("ExternalCourseId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("ExternalProgramId")
+                        .HasColumnType("int");
+
+                    b.Property<bool>("IsActive")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(true);
+
+                    b.Property<int>("OrderIndex")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ExternalCourseId");
+
+                    b.HasIndex("ExternalCourseId", "ExternalProgramId");
+
+                    b.ToTable("CourseClos");
+                });
+
+            modelBuilder.Entity("BitirmeApi.Entity.Entities.CourseCloPloMap", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("CourseCloId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("ExternalPloId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("PloCode")
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<double>("Weight")
+                        .HasPrecision(10, 6)
+                        .HasColumnType("float(10)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CourseCloId", "ExternalPloId")
+                        .IsUnique();
+
+                    b.ToTable("CourseCloPloMaps", t =>
+                        {
+                            t.HasCheckConstraint("CK_CourseCloPloMap_Weight", "[Weight] >= 0 AND [Weight] <= 1");
+                        });
+                });
+
             modelBuilder.Entity("BitirmeApi.Entity.Entities.CourseEvaluation", b =>
                 {
                     b.Property<Guid>("Id")
@@ -227,6 +313,10 @@ namespace BitirmeApi.DataAccess.Migrations
                     b.Property<string>("AcademicTermName")
                         .HasMaxLength(128)
                         .HasColumnType("nvarchar(128)");
+
+                    b.Property<string>("CloDataSource")
+                        .HasMaxLength(8)
+                        .HasColumnType("nvarchar(8)");
 
                     b.Property<string>("CourseCode")
                         .HasMaxLength(64)
@@ -238,6 +328,9 @@ namespace BitirmeApi.DataAccess.Migrations
 
                     b.Property<DateTime>("CreatedDate")
                         .HasColumnType("datetime2");
+
+                    b.Property<int?>("ExternalAcademicTermId")
+                        .HasColumnType("int");
 
                     b.Property<int>("ExternalCourseId")
                         .HasColumnType("int");
@@ -279,7 +372,10 @@ namespace BitirmeApi.DataAccess.Migrations
 
                     b.HasIndex("ExternalTeacherId");
 
-                    b.ToTable("CourseEvaluations");
+                    b.ToTable("CourseEvaluations", t =>
+                        {
+                            t.HasCheckConstraint("CK_CourseEvaluation_CloDataSource", "[CloDataSource] IS NULL OR [CloDataSource] IN ('api','db')");
+                        });
                 });
 
             modelBuilder.Entity("BitirmeApi.Entity.Entities.Exam", b =>
@@ -468,6 +564,10 @@ namespace BitirmeApi.DataAccess.Migrations
                         .HasMaxLength(2000)
                         .HasColumnType("nvarchar(2000)");
 
+                    b.Property<string>("CloSource")
+                        .HasMaxLength(8)
+                        .HasColumnType("nvarchar(8)");
+
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
 
@@ -483,11 +583,14 @@ namespace BitirmeApi.DataAccess.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("ExamQuestionId", "ExternalCloId")
-                        .IsUnique();
+                    b.HasIndex("ExamQuestionId", "ExternalCloId", "CloSource")
+                        .IsUnique()
+                        .HasFilter("[CloSource] IS NOT NULL");
 
                     b.ToTable("ExamQuestionOutcomeMappings", t =>
                         {
+                            t.HasCheckConstraint("CK_ExamQuestionOutcomeMapping_CloSource", "[CloSource] IS NULL OR [CloSource] IN ('api','db')");
+
                             t.HasCheckConstraint("CK_ExamQuestionOutcomeMapping_Weight", "[Weight] >= 0 AND [Weight] <= 1");
                         });
                 });
@@ -622,6 +725,10 @@ namespace BitirmeApi.DataAccess.Migrations
                         .HasMaxLength(2000)
                         .HasColumnType("nvarchar(2000)");
 
+                    b.Property<string>("CloSource")
+                        .HasMaxLength(8)
+                        .HasColumnType("nvarchar(8)");
+
                     b.Property<int?>("ExternalCloId")
                         .HasColumnType("int");
 
@@ -662,7 +769,302 @@ namespace BitirmeApi.DataAccess.Migrations
 
                     b.HasIndex("SurveyId");
 
-                    b.ToTable("Questions");
+                    b.ToTable("Questions", t =>
+                        {
+                            t.HasCheckConstraint("CK_Question_CloSource", "[CloSource] IS NULL OR [CloSource] IN ('api','db')");
+                        });
+                });
+
+            modelBuilder.Entity("BitirmeApi.Entity.Entities.SemesterReport", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("AcademicTermName")
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<string>("CourseCode")
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<string>("CourseContent")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("CourseCredit")
+                        .HasMaxLength(16)
+                        .HasColumnType("nvarchar(16)");
+
+                    b.Property<string>("CourseEcts")
+                        .HasMaxLength(16)
+                        .HasColumnType("nvarchar(16)");
+
+                    b.Property<Guid>("CourseEvaluationId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("CourseName")
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)");
+
+                    b.Property<string>("CourseObjective")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int?>("CoursePracticeHours")
+                        .HasColumnType("int");
+
+                    b.Property<string>("CourseSemester")
+                        .HasMaxLength(16)
+                        .HasColumnType("nvarchar(16)");
+
+                    b.Property<int?>("CourseTheoryHours")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("DepartmentName")
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)");
+
+                    b.Property<int>("ExternalCourseOfferingId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("ExternalTeacherId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("FacultyName")
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)");
+
+                    b.Property<string>("SectionANotes")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("SectionGDiscussion")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("SectionHCommentary")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("SectionIGeneralEvaluation")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("SectionJChangesFromPrevious")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("SectionMImprovement")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime?>("SignatureDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("SignatureName")
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("nvarchar(16)");
+
+                    b.Property<string>("TeacherName")
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)");
+
+                    b.Property<string>("TeacherTitle")
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<string>("UniversityName")
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CourseEvaluationId")
+                        .IsUnique();
+
+                    b.HasIndex("ExternalCourseOfferingId");
+
+                    b.HasIndex("ExternalTeacherId");
+
+                    b.ToTable("SemesterReports");
+                });
+
+            modelBuilder.Entity("BitirmeApi.Entity.Entities.SemesterReportCloNote", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("CloCode")
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<string>("CloDescription")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<int>("ExternalCloId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("ImprovementSuggestion")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<Guid>("SemesterReportId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("TeacherNote")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("SemesterReportId", "ExternalCloId")
+                        .IsUnique();
+
+                    b.ToTable("SemesterReportCloNotes");
+                });
+
+            modelBuilder.Entity("BitirmeApi.Entity.Entities.SemesterReportFile", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("ContentType")
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<Guid?>("ExamId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("ExamTypeLabel")
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.Property<string>("FileCategory")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<string>("FilePath")
+                        .IsRequired()
+                        .HasMaxLength(1024)
+                        .HasColumnType("nvarchar(1024)");
+
+                    b.Property<long>("FileSize")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("OriginalFileName")
+                        .IsRequired()
+                        .HasMaxLength(512)
+                        .HasColumnType("nvarchar(512)");
+
+                    b.Property<string>("SectionCode")
+                        .IsRequired()
+                        .HasMaxLength(4)
+                        .HasColumnType("nvarchar(4)");
+
+                    b.Property<Guid>("SemesterReportId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("UploadedAt")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("SemesterReportId");
+
+                    b.HasIndex("SemesterReportId", "SectionCode");
+
+                    b.ToTable("SemesterReportFiles");
+                });
+
+            modelBuilder.Entity("BitirmeApi.Entity.Entities.SemesterReportPloNote", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("ExternalPloId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("ImprovementSuggestion")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("PloCode")
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<string>("PloDescription")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<Guid>("SemesterReportId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("TeacherNote")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("SemesterReportId", "ExternalPloId")
+                        .IsUnique();
+
+                    b.ToTable("SemesterReportPloNotes");
+                });
+
+            modelBuilder.Entity("BitirmeApi.Entity.Entities.SemesterReportWeeklyResource", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("ChapterPage")
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)");
+
+                    b.Property<string>("ContentSummary")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(512)
+                        .HasColumnType("nvarchar(512)");
+
+                    b.Property<string>("ResourceInfo")
+                        .HasMaxLength(512)
+                        .HasColumnType("nvarchar(512)");
+
+                    b.Property<string>("ResourceType")
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<Guid>("SemesterReportId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Topic")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<int>("WeekNumber")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("SemesterReportId", "WeekNumber")
+                        .IsUnique();
+
+                    b.ToTable("SemesterReportWeeklyResources", t =>
+                        {
+                            t.HasCheckConstraint("CK_SemesterReportWeeklyResource_WeekNumber", "[WeekNumber] >= 1 AND [WeekNumber] <= 16");
+                        });
                 });
 
             modelBuilder.Entity("BitirmeApi.Entity.Entities.StudentAnswer", b =>
@@ -903,6 +1305,17 @@ namespace BitirmeApi.DataAccess.Migrations
                     b.Navigation("Exam");
                 });
 
+            modelBuilder.Entity("BitirmeApi.Entity.Entities.CourseCloPloMap", b =>
+                {
+                    b.HasOne("BitirmeApi.Entity.Entities.CourseClo", "CourseClo")
+                        .WithMany("PloMaps")
+                        .HasForeignKey("CourseCloId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("CourseClo");
+                });
+
             modelBuilder.Entity("BitirmeApi.Entity.Entities.Exam", b =>
                 {
                     b.HasOne("BitirmeApi.Entity.Entities.CourseEvaluation", "CourseEvaluation")
@@ -994,6 +1407,61 @@ namespace BitirmeApi.DataAccess.Migrations
                     b.Navigation("Survey");
                 });
 
+            modelBuilder.Entity("BitirmeApi.Entity.Entities.SemesterReport", b =>
+                {
+                    b.HasOne("BitirmeApi.Entity.Entities.CourseEvaluation", "CourseEvaluation")
+                        .WithMany()
+                        .HasForeignKey("CourseEvaluationId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("CourseEvaluation");
+                });
+
+            modelBuilder.Entity("BitirmeApi.Entity.Entities.SemesterReportCloNote", b =>
+                {
+                    b.HasOne("BitirmeApi.Entity.Entities.SemesterReport", "SemesterReport")
+                        .WithMany("CloNotes")
+                        .HasForeignKey("SemesterReportId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("SemesterReport");
+                });
+
+            modelBuilder.Entity("BitirmeApi.Entity.Entities.SemesterReportFile", b =>
+                {
+                    b.HasOne("BitirmeApi.Entity.Entities.SemesterReport", "SemesterReport")
+                        .WithMany("Files")
+                        .HasForeignKey("SemesterReportId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("SemesterReport");
+                });
+
+            modelBuilder.Entity("BitirmeApi.Entity.Entities.SemesterReportPloNote", b =>
+                {
+                    b.HasOne("BitirmeApi.Entity.Entities.SemesterReport", "SemesterReport")
+                        .WithMany("PloNotes")
+                        .HasForeignKey("SemesterReportId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("SemesterReport");
+                });
+
+            modelBuilder.Entity("BitirmeApi.Entity.Entities.SemesterReportWeeklyResource", b =>
+                {
+                    b.HasOne("BitirmeApi.Entity.Entities.SemesterReport", "SemesterReport")
+                        .WithMany("WeeklyResources")
+                        .HasForeignKey("SemesterReportId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("SemesterReport");
+                });
+
             modelBuilder.Entity("BitirmeApi.Entity.Entities.StudentAnswer", b =>
                 {
                     b.HasOne("BitirmeApi.Entity.Entities.ExamQuestion", "ExamQuestion")
@@ -1034,6 +1502,11 @@ namespace BitirmeApi.DataAccess.Migrations
                     b.Navigation("StudentScores");
                 });
 
+            modelBuilder.Entity("BitirmeApi.Entity.Entities.CourseClo", b =>
+                {
+                    b.Navigation("PloMaps");
+                });
+
             modelBuilder.Entity("BitirmeApi.Entity.Entities.CourseEvaluation", b =>
                 {
                     b.Navigation("Exams");
@@ -1056,6 +1529,17 @@ namespace BitirmeApi.DataAccess.Migrations
             modelBuilder.Entity("BitirmeApi.Entity.Entities.Question", b =>
                 {
                     b.Navigation("Answers");
+                });
+
+            modelBuilder.Entity("BitirmeApi.Entity.Entities.SemesterReport", b =>
+                {
+                    b.Navigation("CloNotes");
+
+                    b.Navigation("Files");
+
+                    b.Navigation("PloNotes");
+
+                    b.Navigation("WeeklyResources");
                 });
 
             modelBuilder.Entity("BitirmeApi.Entity.Entities.Submission", b =>

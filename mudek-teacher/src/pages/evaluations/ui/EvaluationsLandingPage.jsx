@@ -161,7 +161,9 @@ export function EvaluationsLandingPage() {
           ''
         const courseCode = r?.courseCode ?? r?.CourseCode ?? ''
         const courseName = r?.courseName ?? r?.CourseName ?? ''
-        const termName = r?.termName ?? r?.TermName ?? ''
+        const academicTermId = r?.academicTermId ?? r?.AcademicTermId ?? null
+        const academicTermName = r?.academicTermName ?? r?.AcademicTermName ?? ''
+        const termName = academicTermName || (r?.termName ?? r?.TermName ?? '')
         const section = r?.section ?? r?.Section ?? ''
         const teacherName = r?.teacherName ?? r?.TeacherName ?? ''
         const enrolledCount = r?.enrolledCount ?? r?.EnrolledCount ?? 0
@@ -179,6 +181,8 @@ export function EvaluationsLandingPage() {
           id,
           courseCode,
           courseName,
+          academicTermId,
+          academicTermName,
           termName,
           section,
           teacherName,
@@ -219,7 +223,10 @@ export function EvaluationsLandingPage() {
     setCreateError('')
     try {
       for (const offeringId of ids) {
+        const course = normalizedRows.find((r) => String(r.id) === String(offeringId))
         await createEvaluation(token, offeringId, {
+          externalAcademicTermId: course?.academicTermId ?? null,
+          academicTermName: course?.academicTermName ?? null,
           studentFeedbackEvaluation: null,
           programOutcomeEvaluation: null,
           generalEvaluation: null,

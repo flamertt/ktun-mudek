@@ -59,6 +59,15 @@ namespace BitirmeApi.Business.Concrete
             if (existing != null)
                 throw new InvalidOperationException("Bu ders açılışı için zaten bir değerlendirme mevcut.");
 
+            // Dönem adını çöz: DTO'da varsa kullan, yoksa term ID'den API'ye sor
+            var termName = dto.AcademicTermName;
+            var termId = dto.ExternalAcademicTermId;
+            if (termId.HasValue && string.IsNullOrWhiteSpace(termName))
+            {
+                var terms = await _universityApi.GetAcademicTermsAsync(universityToken);
+                termName = terms.FirstOrDefault(t => t.AcademicTermId == termId.Value)?.AcademicTermName;
+            }
+
             var entity = new CourseEvaluation
             {
                 Id = Guid.NewGuid(),
@@ -66,9 +75,10 @@ namespace BitirmeApi.Business.Concrete
                 ExternalCourseId = dto.ExternalCourseId > 0 ? dto.ExternalCourseId : offeringDetail.CourseId,
                 ExternalProgramId = dto.ExternalProgramId > 0 ? dto.ExternalProgramId : offeringDetail.ProgramId,
                 ExternalTeacherId = externalTeacherId,
+                ExternalAcademicTermId = termId,
                 CourseCode = dto.CourseCode ?? offeringDetail.CourseCode,
                 CourseName = dto.CourseName ?? offeringDetail.CourseName,
-                AcademicTermName = dto.AcademicTermName,
+                AcademicTermName = termName,
                 CreatedDate = DateTime.UtcNow,
                 StudentFeedbackEvaluation = dto.StudentFeedbackEvaluation,
                 ProgramOutcomeEvaluation = dto.ProgramOutcomeEvaluation,

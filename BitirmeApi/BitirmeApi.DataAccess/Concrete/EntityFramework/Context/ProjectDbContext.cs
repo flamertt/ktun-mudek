@@ -16,6 +16,10 @@ namespace BitirmeApi.DataAccess.Concrete.EntityFramework.Context
         public DbSet<Submission> Submissions => Set<Submission>();
         public DbSet<Answer> Answers => Set<Answer>();
 
+        // ───── Yerel CLO / CLO–PO Yönetimi ──────────────────────────────────────
+        public DbSet<CourseClo> CourseClos => Set<CourseClo>();
+        public DbSet<CourseCloPloMap> CourseCloPloMaps => Set<CourseCloPloMap>();
+
         // ───── MÜDEK Ders Değerlendirme Sistemi ──────────────────────────────────
         public DbSet<CourseEvaluation> CourseEvaluations => Set<CourseEvaluation>();
         public DbSet<Exam> Exams => Set<Exam>();
@@ -40,6 +44,14 @@ namespace BitirmeApi.DataAccess.Concrete.EntityFramework.Context
         public DbSet<ExamQuestionEvaluationResult> ExamQuestionEvaluationResults => Set<ExamQuestionEvaluationResult>();
         public DbSet<CloEvaluationResult> CloEvaluationResults => Set<CloEvaluationResult>();
         public DbSet<ProgramOutcomeEvaluationResult> ProgramOutcomeEvaluationResults => Set<ProgramOutcomeEvaluationResult>();
+
+        // ───── Dönem Sonu Ders Değerlendirme Raporu ──────────────────────────
+        public DbSet<SemesterReport> SemesterReports => Set<SemesterReport>();
+        public DbSet<SemesterReportWeeklyResource> SemesterReportWeeklyResources => Set<SemesterReportWeeklyResource>();
+        public DbSet<SemesterReportFile> SemesterReportFiles => Set<SemesterReportFile>();
+        public DbSet<SemesterReportCloNote> SemesterReportCloNotes => Set<SemesterReportCloNote>();
+        public DbSet<SemesterReportPloNote> SemesterReportPloNotes => Set<SemesterReportPloNote>();
+
         //protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
         //{
         //    optionsBuilder.UseSqlServer((@"Server=(localdb)\mssqllocaldb;database=MudekDbAcademicc;Trusted_Connection=True;"));
@@ -49,6 +61,32 @@ namespace BitirmeApi.DataAccess.Concrete.EntityFramework.Context
             // ═══════════════════════════════════════════════════════════════════════
             // ANKET SİSTEMİ
             // ═══════════════════════════════════════════════════════════════════════
+            // ═══════════════════════════════════════════════════════════════════════
+            // YEREL CLO / CLO–PO YÖNETİMİ
+            // ═══════════════════════════════════════════════════════════════════════
+            b.Entity<CourseClo>(e =>
+            {
+                e.Property(x => x.Description).IsRequired().HasMaxLength(2000);
+                e.Property(x => x.Code).HasMaxLength(64);
+                e.Property(x => x.IsActive).HasDefaultValue(true);
+                e.HasIndex(x => x.ExternalCourseId);
+                e.HasIndex(x => new { x.ExternalCourseId, x.ExternalProgramId });
+            });
+
+            b.Entity<CourseCloPloMap>(e =>
+            {
+                e.Property(x => x.Weight).HasPrecision(10, 6).IsRequired();
+                e.Property(x => x.PloCode).HasMaxLength(64);
+
+                e.HasOne(x => x.CourseClo)
+                 .WithMany(c => c.PloMaps)
+                 .HasForeignKey(x => x.CourseCloId)
+                 .OnDelete(DeleteBehavior.Cascade);
+
+                e.HasIndex(x => new { x.CourseCloId, x.ExternalPloId }).IsUnique();
+                e.HasCheckConstraint("CK_CourseCloPloMap_Weight", "[Weight] >= 0 AND [Weight] <= 1");
+            });
+
             b.Entity<Survey>(e =>
             {
                 e.Property(x => x.Title).IsRequired().HasMaxLength(256);
@@ -64,6 +102,8 @@ namespace BitirmeApi.DataAccess.Concrete.EntityFramework.Context
                 e.Property(x => x.McqOptionsCsv).HasMaxLength(2000);
                 e.Property(x => x.CloCode).HasMaxLength(64);
                 e.Property(x => x.CloDescription).HasMaxLength(2000);
+                e.Property(x => x.CloSource).HasMaxLength(8);
+                e.HasCheckConstraint("CK_Question_CloSource", "[CloSource] IS NULL OR [CloSource] IN ('api','db')");
 
                 e.HasOne(x => x.Survey)
                  .WithMany(s => s.Questions)
@@ -106,6 +146,8 @@ namespace BitirmeApi.DataAccess.Concrete.EntityFramework.Context
             {
                 e.HasIndex(x => x.ExternalCourseOfferingId).IsUnique();
                 e.HasIndex(x => x.ExternalTeacherId);
+                e.Property(x => x.CloDataSource).HasMaxLength(8);
+                e.HasCheckConstraint("CK_CourseEvaluation_CloDataSource", "[CloDataSource] IS NULL OR [CloDataSource] IN ('api','db')");
             });
 
             b.Entity<Exam>(e =>
@@ -156,14 +198,17 @@ namespace BitirmeApi.DataAccess.Concrete.EntityFramework.Context
                 e.Property(x => x.Weight).HasPrecision(5, 2).IsRequired();
                 e.Property(x => x.CloCode).HasMaxLength(64);
                 e.Property(x => x.CloDescription).HasMaxLength(2000);
+                e.Property(x => x.CloSource).HasMaxLength(8);
 
                 e.HasOne(x => x.ExamQuestion)
                  .WithMany(q => q.OutcomeMappings)
                  .HasForeignKey(x => x.ExamQuestionId)
                  .OnDelete(DeleteBehavior.Cascade);
 
-                e.HasIndex(x => new { x.ExamQuestionId, x.ExternalCloId }).IsUnique();
+                // CloSource dahil unique: aynı CLO'dan iki farklı kaynakla eşleme yapılamaması için
+                e.HasIndex(x => new { x.ExamQuestionId, x.ExternalCloId, x.CloSource }).IsUnique();
                 e.HasCheckConstraint("CK_ExamQuestionOutcomeMapping_Weight", "[Weight] >= 0 AND [Weight] <= 1");
+                e.HasCheckConstraint("CK_ExamQuestionOutcomeMapping_CloSource", "[CloSource] IS NULL OR [CloSource] IN ('api','db')");
             });
 
             b.Entity<AssessmentComponent>(e =>
@@ -190,14 +235,16 @@ namespace BitirmeApi.DataAccess.Concrete.EntityFramework.Context
                 e.Property(x => x.Weight).HasPrecision(5, 2).IsRequired();
                 e.Property(x => x.CloCode).HasMaxLength(64);
                 e.Property(x => x.CloDescription).HasMaxLength(2000);
+                e.Property(x => x.CloSource).HasMaxLength(8);
 
                 e.HasOne(x => x.AssessmentComponent)
                  .WithMany(ac => ac.OutcomeMappings)
                  .HasForeignKey(x => x.AssessmentComponentId)
                  .OnDelete(DeleteBehavior.Cascade);
 
-                e.HasIndex(x => new { x.AssessmentComponentId, x.ExternalCloId }).IsUnique();
+                e.HasIndex(x => new { x.AssessmentComponentId, x.ExternalCloId, x.CloSource }).IsUnique();
                 e.HasCheckConstraint("CK_AssessmentComponentOutcomeMapping_Weight", "[Weight] >= 0 AND [Weight] <= 1");
+                e.HasCheckConstraint("CK_AssessmentComponentOutcomeMapping_CloSource", "[CloSource] IS NULL OR [CloSource] IN ('api','db')");
             });
 
             // ═══════════════════════════════════════════════════════════════════════
@@ -331,6 +378,66 @@ namespace BitirmeApi.DataAccess.Concrete.EntityFramework.Context
                 e.Property(x => x.ProgramOutcomeTitle).HasMaxLength(256);
 
                 e.HasIndex(x => new { x.ExternalCourseOfferingId, x.ExternalProgramOutcomeId }).IsUnique();
+            });
+
+            // ═══════════════════════════════════════════════════════════════════════
+            // DÖNEM SONU DERS DEĞERLENDİRME RAPORU
+            // ═══════════════════════════════════════════════════════════════════════
+            b.Entity<SemesterReport>(e =>
+            {
+                e.Property(x => x.Status).HasConversion<string>().HasMaxLength(16);
+
+                // Her CourseEvaluation için en fazla bir rapor
+                e.HasIndex(x => x.CourseEvaluationId).IsUnique();
+                e.HasIndex(x => x.ExternalTeacherId);
+                e.HasIndex(x => x.ExternalCourseOfferingId);
+
+                e.HasOne(x => x.CourseEvaluation)
+                 .WithMany()
+                 .HasForeignKey(x => x.CourseEvaluationId)
+                 .OnDelete(DeleteBehavior.Cascade);
+            });
+
+            b.Entity<SemesterReportWeeklyResource>(e =>
+            {
+                e.HasOne(x => x.SemesterReport)
+                 .WithMany(r => r.WeeklyResources)
+                 .HasForeignKey(x => x.SemesterReportId)
+                 .OnDelete(DeleteBehavior.Cascade);
+
+                e.HasIndex(x => new { x.SemesterReportId, x.WeekNumber }).IsUnique();
+                e.HasCheckConstraint("CK_SemesterReportWeeklyResource_WeekNumber", "[WeekNumber] >= 1 AND [WeekNumber] <= 16");
+            });
+
+            b.Entity<SemesterReportFile>(e =>
+            {
+                e.HasOne(x => x.SemesterReport)
+                 .WithMany(r => r.Files)
+                 .HasForeignKey(x => x.SemesterReportId)
+                 .OnDelete(DeleteBehavior.Cascade);
+
+                e.HasIndex(x => x.SemesterReportId);
+                e.HasIndex(x => new { x.SemesterReportId, x.SectionCode });
+            });
+
+            b.Entity<SemesterReportCloNote>(e =>
+            {
+                e.HasOne(x => x.SemesterReport)
+                 .WithMany(r => r.CloNotes)
+                 .HasForeignKey(x => x.SemesterReportId)
+                 .OnDelete(DeleteBehavior.Cascade);
+
+                e.HasIndex(x => new { x.SemesterReportId, x.ExternalCloId }).IsUnique();
+            });
+
+            b.Entity<SemesterReportPloNote>(e =>
+            {
+                e.HasOne(x => x.SemesterReport)
+                 .WithMany(r => r.PloNotes)
+                 .HasForeignKey(x => x.SemesterReportId)
+                 .OnDelete(DeleteBehavior.Cascade);
+
+                e.HasIndex(x => new { x.SemesterReportId, x.ExternalPloId }).IsUnique();
             });
         }
     }
