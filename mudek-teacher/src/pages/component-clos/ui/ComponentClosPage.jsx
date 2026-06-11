@@ -144,8 +144,9 @@ export function ComponentClosPage() {
 
   const columns = useMemo(
     () => [
-      columnHelper.accessor('outcomeCode', { header: 'CLO' }),
-      columnHelper.accessor('outcomeDescription', { header: 'Açıklama' }),
+      // AssessmentComponentOutcomeMappingDto alanları: cloCode, cloDescription, weight
+      columnHelper.accessor((r) => r?.cloCode ?? r?.CloCode ?? '—', { id: 'cloCode', header: 'DÖÇ Kodu' }),
+      columnHelper.accessor((r) => r?.cloDescription ?? r?.CloDescription ?? '—', { id: 'cloDescription', header: 'Açıklama' }),
       columnHelper.accessor('weight', { header: 'Ağırlık', cell: (info) => String(info.getValue() ?? 0) }),
       columnHelper.display({
         id: 'actions',
