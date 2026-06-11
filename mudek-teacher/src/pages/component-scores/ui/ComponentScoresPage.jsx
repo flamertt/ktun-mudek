@@ -1,5 +1,5 @@
 import { createColumnHelper } from '@tanstack/react-table'
-import { RefreshCw, Trash2 } from 'lucide-react'
+import { Trash2 } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 
@@ -21,32 +21,44 @@ import { RefreshIconButton } from '../../../shared/ui/refresh-icon-button/Refres
 
 const columnHelper = createColumnHelper()
 
+// API'den gelen öğrenci objesinden benzersiz ID çek
+// UniversityStudentDto: { studentId, studentNumber, fullName }
+const getStudentId = (student) =>
+  student?.studentId ?? student?.StudentId ?? student?.id ?? student?.Id
+
+// Skor objesinden ilgili öğrenci ID'sini çek
+// StudentAssessmentComponentScoreDto: { externalStudentId, id, score, notes }
+const getScoreStudentId = (score) =>
+  score?.externalStudentId ?? score?.ExternalStudentId ?? score?.enrollmentId ?? score?.EnrollmentId
+
 export function ComponentScoresPage() {
   const { offeringId, evaluationId, componentId } = useParams()
   const navigate = useNavigate()
 
-  const [enrollments, setEnrollments] = useState([])
+  const [students, setStudents] = useState([])
   const [scores, setScores] = useState([])
 
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const [globalFilter, setGlobalFilter] = useState('')
 
-  const [scoreDraftByEnrollmentId, setScoreDraftByEnrollmentId] = useState({})
-  const [notesDraftByEnrollmentId, setNotesDraftByEnrollmentId] = useState({})
+  const [scoreDraftByStudentId, setScoreDraftByStudentId] = useState({})
+  const [notesDraftByStudentId, setNotesDraftByStudentId] = useState({})
 
-  const scoreDraftRef = useRef(scoreDraftByEnrollmentId)
-  const notesDraftRef = useRef(notesDraftByEnrollmentId)
-  scoreDraftRef.current = scoreDraftByEnrollmentId
-  notesDraftRef.current = notesDraftByEnrollmentId
+  const scoreDraftRef = useRef(scoreDraftByStudentId)
+  const notesDraftRef = useRef(notesDraftByStudentId)
+  scoreDraftRef.current = scoreDraftByStudentId
+  notesDraftRef.current = notesDraftByStudentId
 
   const [saving, setSaving] = useState(false)
   const [submitError, setSubmitError] = useState('')
 
-  const scoreByEnrollmentId = useMemo(() => {
+  // externalStudentId → mevcut skor satırı
+  const scoreByStudentId = useMemo(() => {
     const map = new Map()
     for (const s of Array.isArray(scores) ? scores : []) {
-      map.set(s.enrollmentId ?? s.EnrollmentId, s)
+      const sid = getScoreStudentId(s)
+      if (sid != null) map.set(sid, s)
     }
     return map
   }, [scores])
@@ -58,22 +70,23 @@ export function ComponentScoresPage() {
     setError('')
 
     Promise.all([fetchCourseStudents(token, offeringId), fetchScores(token, componentId)])
-      .then(([enr, sc]) => {
-        const enroll = Array.isArray(enr) ? enr : []
+      .then(([stuData, sc]) => {
+        const stuList = Array.isArray(stuData) ? stuData : []
         const scoreRows = Array.isArray(sc) ? sc : []
-        setEnrollments(enroll)
+        setStudents(stuList)
         setScores(scoreRows)
 
         const scoreDraft = {}
         const notesDraft = {}
-        for (const en of enroll) {
-          const enrollmentId = en.id ?? en.Id
-          const existing = scoreRows.find((s) => (s.enrollmentId ?? s.EnrollmentId) === enrollmentId)
-          scoreDraft[enrollmentId] = existing ? existing.score ?? existing.Score : ''
-          notesDraft[enrollmentId] = existing ? existing.notes ?? existing.Notes ?? '' : ''
+        for (const stu of stuList) {
+          const sid = getStudentId(stu)
+          if (sid == null) continue
+          const existing = scoreRows.find((s) => getScoreStudentId(s) === sid)
+          scoreDraft[sid] = existing ? existing.score ?? existing.Score ?? '' : ''
+          notesDraft[sid] = existing ? existing.notes ?? existing.Notes ?? '' : ''
         }
-        setScoreDraftByEnrollmentId(scoreDraft)
-        setNotesDraftByEnrollmentId(notesDraft)
+        setScoreDraftByStudentId(scoreDraft)
+        setNotesDraftByStudentId(notesDraft)
       })
       .catch((e) => setError(e instanceof Error ? e.message : 'Notlar alınamadı.'))
       .finally(() => setLoading(false))
@@ -84,20 +97,21 @@ export function ComponentScoresPage() {
   }, [load])
 
   const handleSaveOne = useCallback(
-    async (enrollment) => {
+    async (student) => {
       const token = getTeacherToken()
       if (!token || !componentId) return
       setSubmitError('')
 
-      const enrollmentId = enrollment.id ?? enrollment.Id
-      const existing = scoreByEnrollmentId.get(enrollmentId)
+      const sid = getStudentId(student)
+      if (sid == null) { setSubmitError('Öğrenci ID bulunamadı.'); return }
+
+      const existing = scoreByStudentId.get(sid)
       const scoreId = existing?.id ?? existing?.Id
 
-      const raw = scoreDraftRef.current[enrollmentId]
+      const raw = scoreDraftRef.current[sid]
       const score = parseMaybeNumber(raw)
-      const notes = String(notesDraftRef.current[enrollmentId] ?? '').trim() || null
+      const notes = String(notesDraftRef.current[sid] ?? '').trim() || null
 
-      // Boş = sınava girmemiş: kayıt varsa sil, yoksa hiçbir şey yapma
       if (score == null) {
         if (!scoreId) return
         setSaving(true)
@@ -117,7 +131,7 @@ export function ComponentScoresPage() {
         if (scoreId) {
           await updateScore(token, scoreId, { score, notes })
         } else {
-          await addScore(token, componentId, { enrollmentId, score, notes })
+          await addScore(token, componentId, { externalStudentId: sid, score, notes })
         }
         await load()
       } catch (e) {
@@ -126,15 +140,15 @@ export function ComponentScoresPage() {
         setSaving(false)
       }
     },
-    [componentId, deleteScore, load, scoreByEnrollmentId],
+    [componentId, load, scoreByStudentId],
   )
 
   const handleDeleteOne = useCallback(
-    async (enrollment) => {
+    async (student) => {
       const token = getTeacherToken()
       if (!token || !componentId) return
-      const enrollmentId = enrollment.id ?? enrollment.Id
-      const existing = scoreByEnrollmentId.get(enrollmentId)
+      const sid = getStudentId(student)
+      const existing = scoreByStudentId.get(sid)
       const scoreId = existing?.id ?? existing?.Id
       if (!scoreId) return
 
@@ -152,7 +166,7 @@ export function ComponentScoresPage() {
         setSaving(false)
       }
     },
-    [componentId, load, scoreByEnrollmentId],
+    [componentId, load, scoreByStudentId],
   )
 
   const handleSaveBulk = useCallback(async () => {
@@ -160,12 +174,13 @@ export function ComponentScoresPage() {
     if (!token || !componentId || !offeringId) return
 
     const scoresItems = []
-    for (const en of enrollments) {
-      const enrollmentId = en.id ?? en.Id
-      const score = parseMaybeNumber(scoreDraftRef.current[enrollmentId])
+    for (const stu of students) {
+      const sid = getStudentId(stu)
+      if (sid == null) continue
+      const score = parseMaybeNumber(scoreDraftRef.current[sid])
       if (score == null) continue
-      const notes = String(notesDraftRef.current[enrollmentId] ?? '').trim() || null
-      scoresItems.push({ enrollmentId, score, notes })
+      const notes = String(notesDraftRef.current[sid] ?? '').trim() || null
+      scoresItems.push({ externalStudentId: sid, score, notes })
     }
 
     if (!scoresItems.length) {
@@ -183,20 +198,26 @@ export function ComponentScoresPage() {
     } finally {
       setSaving(false)
     }
-  }, [componentId, enrollments, load, offeringId])
+  }, [componentId, students, load, offeringId])
 
   const columns = useMemo(
     () => [
-      columnHelper.accessor('studentFullName', { header: 'Öğrenci' }),
-      columnHelper.accessor('studentNumber', { header: 'Numara' }),
-      columnHelper.accessor('status', { header: 'Durum', cell: (info) => info.getValue() ?? '—' }),
+      // API'den gelen alan adı: fullName (ASP.NET camelCase → fullName)
+      columnHelper.accessor((row) => row?.fullName ?? row?.FullName ?? row?.studentFullName ?? '—', {
+        id: 'fullName',
+        header: 'Öğrenci',
+      }),
+      columnHelper.accessor((row) => row?.studentNumber ?? row?.StudentNumber ?? '—', {
+        id: 'studentNumber',
+        header: 'Numara',
+      }),
       columnHelper.display({
         id: 'score',
         header: 'Puan',
         cell: ({ row }) => {
-          const en = row.original
-          const enrollmentId = en.id ?? en.Id
-          const value = scoreDraftRef.current[enrollmentId] ?? ''
+          const stu = row.original
+          const sid = getStudentId(stu)
+          const value = scoreDraftRef.current[sid] ?? ''
           return (
             <input
               type="text"
@@ -207,9 +228,9 @@ export function ComponentScoresPage() {
               placeholder="boş = girmedi"
               value={value}
               onChange={(e) =>
-                setScoreDraftByEnrollmentId((prev) => ({
+                setScoreDraftByStudentId((prev) => ({
                   ...prev,
-                  [enrollmentId]: e.target.value,
+                  [sid]: e.target.value,
                 }))
               }
             />
@@ -220,9 +241,9 @@ export function ComponentScoresPage() {
         id: 'notes',
         header: 'Açıklama',
         cell: ({ row }) => {
-          const en = row.original
-          const enrollmentId = en.id ?? en.Id
-          const value = notesDraftRef.current[enrollmentId] ?? ''
+          const stu = row.original
+          const sid = getStudentId(stu)
+          const value = notesDraftRef.current[sid] ?? ''
           return (
             <input
               type="text"
@@ -232,9 +253,9 @@ export function ComponentScoresPage() {
               placeholder="İsteğe bağlı kısa not"
               value={value}
               onChange={(e) =>
-                setNotesDraftByEnrollmentId((prev) => ({
+                setNotesDraftByStudentId((prev) => ({
                   ...prev,
-                  [enrollmentId]: e.target.value,
+                  [sid]: e.target.value,
                 }))
               }
             />
@@ -245,9 +266,9 @@ export function ComponentScoresPage() {
         id: 'actions',
         header: 'İşlemler',
         cell: ({ row }) => {
-          const en = row.original
-          const enrollmentId = en.id ?? en.Id
-          const existing = scoreByEnrollmentId.get(enrollmentId)
+          const stu = row.original
+          const sid = getStudentId(stu)
+          const existing = scoreByStudentId.get(sid)
           const hasExisting = Boolean(existing?.id ?? existing?.Id)
 
           return (
@@ -256,7 +277,7 @@ export function ComponentScoresPage() {
                 type="button"
                 className={`${formStyles.btn} ${formStyles.btnPrimary}`}
                 disabled={saving}
-                onClick={() => handleSaveOne(en)}
+                onClick={() => handleSaveOne(stu)}
               >
                 Kaydet
               </button>
@@ -265,7 +286,7 @@ export function ComponentScoresPage() {
                   type="button"
                   className={`${formStyles.rowActionText} ${formStyles.rowActionTextDanger}`}
                   disabled={saving}
-                  onClick={() => handleDeleteOne(en)}
+                  onClick={() => handleDeleteOne(stu)}
                 >
                   <Trash2 size={14} aria-hidden />
                   Kaydı sil
@@ -276,7 +297,7 @@ export function ComponentScoresPage() {
         },
       }),
     ],
-    [handleDeleteOne, handleSaveOne, saving, scoreByEnrollmentId],
+    [handleDeleteOne, handleSaveOne, saving, scoreByStudentId],
   )
 
   return (
@@ -290,7 +311,7 @@ export function ComponentScoresPage() {
         <button
           type="button"
           className={`${formStyles.btn} ${formStyles.btnPrimary}`}
-          disabled={saving || !enrollments.length}
+          disabled={saving || !students.length}
           onClick={handleSaveBulk}
         >
           Toplu kaydet
@@ -310,7 +331,7 @@ export function ComponentScoresPage() {
       <div style={{ marginTop: '0.75rem' }}>
         <DataTable
           columns={columns}
-          data={enrollments}
+          data={students}
           globalFilter={globalFilter}
           onGlobalFilterChange={setGlobalFilter}
           searchPlaceholder="Öğrenci ara…"
@@ -322,4 +343,3 @@ export function ComponentScoresPage() {
     </PageSection>
   )
 }
-
